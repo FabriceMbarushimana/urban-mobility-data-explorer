@@ -1,0 +1,84 @@
+NYC TAXI DATA PIPELINE SUMMARY REPORT
+============================================================
+
+Processing Date: 2026-02-17 15:12:54
+
+DATASET OVERVIEW
+------------------------------------------------------------
+Total Records: 2,695,413
+Total Columns: 33
+
+COLUMN LIST
+------------------------------------------------------------
+  - VendorID
+  - tpep_pickup_datetime
+  - tpep_dropoff_datetime
+  - passenger_count
+  - trip_distance
+  - RatecodeID
+  - store_and_fwd_flag
+  - PULocationID
+  - DOLocationID
+  - payment_type
+  - fare_amount
+  - extra
+  - mta_tax
+  - tip_amount
+  - tolls_amount
+  - improvement_surcharge
+  - total_amount
+  - congestion_surcharge
+  - Airport_fee
+  - pickup_borough
+  - pickup_zone
+  - pickup_service_zone
+  - dropoff_borough
+  - dropoff_zone
+  - dropoff_service_zone
+  - trip_duration_minutes
+  - fare_per_mile
+  - pickup_hour
+  - pickup_hour_bucket
+  - trip_speed_mph
+  - time_of_day
+  - day_of_week
+  - is_weekend
+
+DATA QUALITY METRICS
+------------------------------------------------------------
+Missing Values: 0
+Duplicate Rows: 0
+
+ENGINEERED FEATURES SUMMARY
+------------------------------------------------------------
+
+trip_duration_minutes:
+  mean: 14.84
+  median: 11.58
+  std: 11.77
+  min: 0.02
+  max: 179.07
+
+fare_per_mile:
+  mean: 8.01
+  median: 7.20
+  std: 5.71
+  min: 0.00
+  max: 100.00
+
+trip_speed_mph:
+  mean: 11.44
+  median: 9.62
+  std: 6.70
+  min: 0.00
+  max: 80.00
+
+pickup_hour:
+  mean: 14.27
+  median: 15.00
+  std: 5.63
+  min: 0.00
+  max: 23.00
+
+============================================================
+END OF REPORT

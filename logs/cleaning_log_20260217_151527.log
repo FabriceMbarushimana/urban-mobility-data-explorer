@@ -1,0 +1,13 @@
+[2026-02-17 14:54:35] Starting cleaning process. Initial records: 2964624
+[2026-02-17 14:57:55] Removed 60430 records with invalid trip distance
+[2026-02-17 14:58:21] Removed 34555 records with invalid fare amount
+[2026-02-17 14:58:46] Removed 145931 records with invalid passenger count
+[2026-02-17 14:59:08] Removed 55 records with invalid timestamps
+[2026-02-17 14:59:30] Removed 9543 records with invalid pickup location
+[2026-02-17 14:59:53] Removed 16800 records with invalid dropoff location
+[2026-02-17 15:00:16] Total outliers removed: 267314
+[2026-02-17 15:00:36] Normalized tpep_pickup_datetime to datetime
+[2026-02-17 15:00:37] Normalized tpep_dropoff_datetime to datetime
+[2026-02-17 15:00:50] Data types normalized
+[2026-02-17 15:00:53] Cleaning complete. Final records: 2697310
+[2026-02-17 15:00:53] Removed 267314 records (9.02%)

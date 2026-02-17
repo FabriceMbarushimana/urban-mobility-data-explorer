@@ -1,0 +1,13 @@
+DATA CLEANING EXCLUSION LOG
+==================================================
+
+Total Records Excluded: 267314
+
+Breakdown by Reason:
+--------------------------------------------------
+Invalid trip distance (<=0 or >100 miles): 60430 records
+Invalid fare amount (<=0 or >$500): 34555 records
+Invalid passenger count (<=0 or >6): 145931 records
+Dropoff time before pickup time: 55 records
+Invalid pickup location ID: 9543 records
+Invalid dropoff location ID: 16800 records

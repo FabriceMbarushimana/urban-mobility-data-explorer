@@ -1,0 +1,5 @@
+scripts/__pycache__/
+data/raw/
+data/processed/*.csv
+data/processed/*.parquet
+scripts/__pycache__/

@@ -1,0 +1,20 @@
+FEATURE ENGINEERING LOG
+==================================================
+
+[2026-02-17 15:00:53] Starting feature engineering on 2697310 records
+[2026-02-17 15:01:53] Added feature: trip_duration_minutes (mean: 14.84 min)
+[2026-02-17 15:01:56] Added feature: fare_per_mile (mean: $8.01/mile)
+[2026-02-17 15:02:05] Added feature: pickup_hour and pickup_hour_bucket
+[2026-02-17 15:02:06] Added feature: trip_speed_mph (mean: 11.44 mph)
+[2026-02-17 15:02:12] Added feature: time_of_day
+[2026-02-17 15:02:25] Added feature: day_of_week and is_weekend
+[2026-02-17 15:02:25] Feature engineering complete. Added 8 new features
+
+DERIVED FEATURES:
+--------------------------------------------------
+1. trip_duration_minutes: Time between pickup and dropoff
+2. fare_per_mile: Fare amount divided by trip distance
+3. pickup_hour_bucket: Categorized time periods
+4. trip_speed_mph: Average speed during trip
+5. time_of_day: Rush hour vs off-peak categorization
+6. day_of_week: Day name and weekend indicator
