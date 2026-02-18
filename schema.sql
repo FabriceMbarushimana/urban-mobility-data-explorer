@@ -24,3 +24,6 @@ CREATE TABLE trips (
     trip_duration_minutes DECIMAL(6,2),
     fare_per_mile DECIMAL(6,2),
     pickup_hour INT,
+   CONSTRAINT fk_pickup_zone FOREIGN KEY (pickup_zone_id) REFERENCES zones(zone_id),
+    CONSTRAINT fk_dropoff_zone FOREIGN KEY (dropoff_zone_id) REFERENCES zones(zone_id)
+) ENGINE=InnoDB;
