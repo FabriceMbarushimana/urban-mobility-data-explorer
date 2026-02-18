@@ -3,3 +3,5 @@ data/raw/
 data/processed/*.csv
 data/processed/*.parquet
 scripts/__pycache__/
+.env
+.env.example
