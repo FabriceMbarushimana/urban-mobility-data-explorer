@@ -318,3 +318,184 @@ class DatabaseHandler:
         """
         return self.execute_query(query)
     
+    def get_distance_analysis(self):
+        """
+        Get distance-based insights grouped by trip length categories.
+        
+        Returns:
+            list: Statistics for each distance category (Short, Medium, Long, Very Long)
+        """
+        query = """
+        SELECT 
+            distance_category,                 -- Distance bracket
+            COUNT(*) as trip_count,            -- Number of trips in this category
+            AVG(fare_amount) as avg_fare,      -- Average fare for this distance
+            AVG(duration_mins) as avg_duration,-- Average duration
+            AVG(avg_speed_mph) as avg_speed,   -- Average speed
+            AVG(tip_percentage) as avg_tip_pct -- Average tip percentage
+        FROM trips
+        GROUP BY distance_category
+        ORDER BY 
+            CASE distance_category             -- Custom sort order by distance
+                WHEN 'Short (0-2 mi)' THEN 1
+                WHEN 'Medium (2-5 mi)' THEN 2
+                WHEN 'Long (5-10 mi)' THEN 3
+                WHEN 'Very Long (10+ mi)' THEN 4
+            END
+        """
+        return self.execute_query(query)
+    
+    def get_top_routes(self, limit=10):
+        """
+        Get most popular routes (pickup-dropoff location pairs).
+        
+        Args:
+            limit (int): Number of top routes to return
+            
+        Returns:
+            list: Most frequent routes with statistics
+        """
+        query = """
+        SELECT 
+            pu_zone as pickup_zone,            -- Pickup location name
+            pu_borough as pickup_borough,      -- Pickup borough
+            do_zone as dropoff_zone,           -- Dropoff location name
+            do_borough as dropoff_borough,     -- Dropoff borough
+            COUNT(*) as trip_count,            -- Number of trips on this route
+            AVG(fare_amount) as avg_fare,      -- Average fare for this route
+            AVG(trip_distance) as avg_distance,-- Average distance
+            AVG(duration_mins) as avg_duration -- Average duration
+        FROM trips
+        WHERE pu_zone IS NOT NULL AND pu_zone != 'Unknown'    -- Exclude invalid data
+          AND do_zone IS NOT NULL AND do_zone != 'Unknown'
+        GROUP BY pu_zone, pu_borough, do_zone, do_borough     -- Group by route
+        ORDER BY trip_count DESC               -- Most popular routes first
+        LIMIT %s
+        """
+        return self.execute_query(query, (limit,))
+    
+    def get_payment_analysis(self):
+        """
+        Get payment type distribution and tipping patterns.
+        
+        Returns:
+            list: Statistics for each payment method (Credit Card, Cash, etc.)
+            
+        Note:
+            Credit card payments typically show higher tip percentages
+        """
+        query = """
+        SELECT 
+            payment_type,                      -- Payment method used
+            COUNT(*) as trip_count,            -- Number of trips with this payment type
+            AVG(fare_amount) as avg_fare,      -- Average fare amount
+            AVG(tip_amount) as avg_tip,        -- Average tip amount
+            AVG(tip_percentage) as avg_tip_pct,-- Average tip percentage
+            SUM(total_amount) as total_revenue -- Total revenue from this payment type
+        FROM trips
+        GROUP BY payment_type
+        ORDER BY trip_count DESC               -- Most common payment types first
+        """
+        return self.execute_query(query)
+    
+    def get_speed_analysis(self):
+        """
+        Get speed analysis by hour of day (useful for traffic pattern analysis).
+        
+        Returns:
+            list: Average speeds by hour showing traffic congestion patterns
+        """
+        query = """
+        SELECT 
+            pickup_hour,                       -- Hour of day (0-23)
+            AVG(avg_speed_mph) as avg_speed,   -- Average speed in mph
+            MIN(avg_speed_mph) as min_speed,   -- Minimum speed recorded
+            MAX(avg_speed_mph) as max_speed,   -- Maximum speed recorded
+            COUNT(*) as trip_count             -- Number of trips
+        FROM trips
+        WHERE avg_speed_mph > 0                -- Exclude invalid speed data
+        GROUP BY pickup_hour
+        ORDER BY pickup_hour
+        """
+        return self.execute_query(query)
+    
+    def get_tip_analysis(self):
+        """
+        Get tip percentage analysis by payment type.
+        
+        Returns:
+            list: Tipping statistics showing variance by payment method
+            
+        Note:
+            Credit card payments typically have recorded tips, cash tips may not be tracked
+        """
+        query = """
+        SELECT 
+            payment_type,                      -- Payment method
+            AVG(tip_percentage) as avg_tip_pct,-- Average tip percentage
+            MIN(tip_percentage) as min_tip_pct,-- Minimum tip percentage
+            MAX(tip_percentage) as max_tip_pct,-- Maximum tip percentage
+            COUNT(*) as trip_count             -- Number of trips
+        FROM trips
+        GROUP BY payment_type
+        ORDER BY avg_tip_pct DESC              -- Best tippers first
+        """
+        return self.execute_query(query)
+    
+    def get_trips_for_analysis(self, limit=1000):
+        """
+        Get trips data for custom algorithm analysis (outlier detection, aggregation).
+        
+        Args:
+            limit (int): Number of recent trips to retrieve
+            
+        Returns:
+            list: Trip data with key metrics for algorithmic analysis
+        """
+        query = """
+        SELECT 
+            id,                                -- Unique trip identifier
+            fare_amount,                       -- Fare for outlier detection
+            trip_distance,                     -- Distance traveled
+            duration_mins,                     -- Trip duration
+            pickup_hour,                       -- Hour for aggregation
+            passenger_count,                   -- Number of passengers
+            avg_speed_mph,                     -- Speed for analysis
+            tip_percentage                     -- Tip percentage
+        FROM trips
+        ORDER BY tpep_pickup_datetime DESC    -- Most recent trips first
+        LIMIT %s
+        """
+        return self.execute_query(query, (limit,))
+    
+    def get_weekend_comparison(self):
+        """
+        Get weekend vs weekday comparison to analyze behavioral differences.
+        
+        Returns:
+            list: Comparative statistics for Weekend and Weekday trips
+            
+        Note:
+            In MySQL DAYOFWEEK(): 1=Sunday, 7=Saturday
+        """
+        query = """
+        SELECT
+            CASE
+                WHEN DAYOFWEEK(tpep_pickup_datetime) IN (1,7) THEN 'Weekend'
+                ELSE 'Weekday'
+            END as day_type,                   -- Classify as Weekend or Weekday
+            COUNT(*) as trip_count,            -- Total trips
+            AVG(fare_amount) as avg_fare,      -- Average fare
+            AVG(trip_distance) as avg_distance,-- Average distance
+            AVG(duration_mins) as avg_duration,-- Average duration
+            AVG(tip_percentage) as avg_tip_pct -- Average tip percentage
+        FROM trips
+        GROUP BY day_type
+        ORDER BY day_type DESC                 -- Weekend first, then Weekday
+        """
+        return self.execute_query(query)
+
+
+
+
+    
