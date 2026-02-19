@@ -6,6 +6,9 @@ A comprehensive data analysis platform for exploring NYC taxi trip patterns usin
 
 **Presentetion Video:** [(https://www.loom.com/share/075c3c0de7cf4bb089b595ff64c3b126)] 
 
+
+
+
 **Team Participation document:** [[https://docs.google.com/spreadsheets/d/1i1QJRnCEk0WvKSzJFw4rc3uzqN_qys0qObbPB9KV5gk/edit?gid=0#gid=0](https://docs.google.com/spreadsheets/d/1i1QJRnCEk0WvKSzJFw4rc3uzqN_qys0qObbPB9KV5gk/edit?gid=0#gid=0)] 
 
 
