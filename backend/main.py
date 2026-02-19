@@ -98,3 +98,28 @@ print(f"   [OK] Loaded {len(taxi_zones_data)} taxi zones")
 print("   > Loading spatial data (shapefiles)...")
 zones_spatial = gpd.read_file(SPATIAL_DATA)
 print(f"   [OK] Loaded {len(zones_spatial)} geographic zones")
+
+# STEP 2: DATA INTEGRATION (MERGING)
+print("\nSTEP 2: Integrating datasets...")
+print("-" * 70)
+
+# Merge trip data with pickup zone information
+print("   > Joining trip data with pickup zone information...")
+df = trips.merge(lookup, left_on='PULocationID', right_on='LocationID', how='left')
+df = df.rename(columns={'Borough': 'pu_borough', 'Zone': 'pu_zone'})
+print("   [OK] Pickup zones merged successfully")
+
+# Add dropoff zone/borough information
+print("   > Joining trip data with dropoff zone information...")
+lookup_do = lookup.rename(
+    columns={
+        'LocationID': 'DOLocationID',      # Rename to match dropoff location ID
+        'Borough': 'do_borough',            # Dropoff borough
+        'Zone': 'do_zone',                  # Dropoff zone name
+        'service_zone': 'do_service_zone'   # Dropoff service zone
+    }
+)
+df = df.merge(lookup_do, on='DOLocationID', how='left')
+print("   [OK] Dropoff zones merged successfully")
+print(f"   [OK] Final merged dataset: {len(df):,} records with {len(df.columns)} columns")
+
