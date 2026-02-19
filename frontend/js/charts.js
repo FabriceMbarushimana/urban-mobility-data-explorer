@@ -1,246 +1,695 @@
+// charts.js - Chart Rendering with Chart.js
+// All chart creation and management functions
 
-var chartColors = {
-    bar: '#2d5f2d',
-    barAlt: '#c4553a',
-    grid: '#e0ddd4',
-    text: '#1a1a1a',
-    textLight: '#6b6b6b'
+// ========================================
+// CHART CONFIGURATION
+// ========================================
+
+const chartColors = {
+    primary: '#2d5f2d',
+    secondary: '#c4553a',
+    accent: '#4a7c59',
+    highlight: '#d97654',
+    neutral: '#6b6b6b',
+    lightGray: '#e0ddd4',
+    background: '#faf9f7'
 };
 
+// Track if charts are currently rendering
+const chartRenderStates = {
+    hourly: false,
+    borough: false,
+    distance: false,
+    payment: false,
+    speed: false,
+    weekend: false,
+    tips: false,
+    routes: false
+};
 
-function drawHourlyChart(canvasId, trips) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    var ctx = canvas.getContext('2d');
-    var w = canvas.offsetWidth;
-    var h = canvas.offsetHeight;
-    canvas.width = w;
-    canvas.height = h;
-
-
-    var hourCounts = [];
-    for (var i = 0; i < 24; i++) hourCounts[i] = 0;
-    for (var t = 0; t < trips.length; t++) {
-        var hour = trips[t].pickupTime.getHours();
-        hourCounts[hour]++;
-    }
-
-    var maxCount = 1;
-    for (var i = 0; i < 24; i++) {
-        if (hourCounts[i] > maxCount) maxCount = hourCounts[i];
-    }
-
-    var pad = { top: 20, right: 20, bottom: 40, left: 45 };
-    var chartW = w - pad.left - pad.right;
-    var chartH = h - pad.top - pad.bottom;
-    var barW = chartW / 24 - 3;
-
-
-    ctx.strokeStyle = chartColors.grid;
-    ctx.lineWidth = 1;
-    for (var g = 0; g <= 4; g++) {
-        var y = pad.top + (chartH / 4) * g;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(w - pad.right, y);
-        ctx.stroke();
-
-        ctx.fillStyle = chartColors.textLight;
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(Math.round(maxCount - (maxCount / 4) * g), pad.left - 8, y + 4);
-    }
-
-
-    for (var i = 0; i < 24; i++) {
-        var barH = (hourCounts[i] / maxCount) * chartH;
-        var x = pad.left + i * (chartW / 24) + 1.5;
-        var y = pad.top + chartH - barH;
-
-        var isPeak = (i >= 7 && i <= 9) || (i >= 17 && i <= 19);
-        ctx.fillStyle = isPeak ? chartColors.barAlt : chartColors.bar;
-
-        ctx.beginPath();
-        ctx.rect(x, y, barW, barH);
-        ctx.fill();
-
-        if (i % 2 === 0) {
-            ctx.fillStyle = chartColors.textLight;
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            var label = i === 0 ? '12a' : i < 12 ? i + 'a' : i === 12 ? '12p' : (i - 12) + 'p';
-            ctx.fillText(label, x + barW / 2, h - pad.bottom + 15);
+const defaultChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+        duration: 750,
+        easing: 'easeInOutQuart'
+    },
+    plugins: {
+        legend: {
+            display: true,
+            position: 'top'
         }
     }
+};
 
+// ========================================
+// OVERVIEW TAB CHARTS
+// ========================================
 
-    ctx.strokeStyle = chartColors.text;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, pad.top + chartH);
-    ctx.lineTo(w - pad.right, pad.top + chartH);
-    ctx.stroke();
+/**
+ * Create hourly trip volume chart
+ * @param {object} data - Hourly patterns data from API
+ */
+function createHourlyChart(data) {
+    if (chartRenderStates.hourly) return;
+    chartRenderStates.hourly = true;
+    
+    const ctx = document.getElementById('chart-hourly');
+    if (!ctx) {
+        chartRenderStates.hourly = false;
+        return;
+    }
+    
+    // Destroy existing chart if present
+    if (window.hourlyChart && typeof window.hourlyChart.destroy === 'function') {
+        window.hourlyChart.destroy();
+        window.hourlyChart = null;
+    }
+    
+    // Normalize data - API returns array of {pickup_hour, trip_count, avg_fare, ...}
+    const hourlyData = Array.isArray(data) ? data : [];
+    if (hourlyData.length === 0) {
+        console.warn('No hourly data available');
+        chartRenderStates.hourly = false;
+        return;
+    }
+    
+    // Extract hours and counts from normalized data
+    const hours = hourlyData.map(d => d.pickup_hour ?? d.hour ?? 0);
+    const counts = hourlyData.map(d => d.trip_count ?? d.total_trips ?? 0);
+    
+    // Color bars based on peak hours
+    const backgroundColors = hours.map(hour => {
+        return (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19) 
+            ? chartColors.secondary 
+            : chartColors.primary;
+    });
+    
+    try {
+        window.hourlyChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: hours.map(h => {
+                    if (h === 0) return '12AM';
+                    if (h < 12) return `${h}AM`;
+                    if (h === 12) return '12PM';
+                    return `${h-12}PM`;
+                }),
+                datasets: [{
+                    label: 'Trips',
+                    data: counts,
+                    backgroundColor: backgroundColors,
+                    borderColor: backgroundColors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                ...defaultChartOptions,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Trips: ${context.parsed.y.toLocaleString()}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error creating hourly chart:', error);
+    } finally {
+        chartRenderStates.hourly = false;
+    }
 }
 
-
-function drawBoroughChart(canvasId, trips) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    var ctx = canvas.getContext('2d');
-    var w = canvas.offsetWidth;
-    var h = canvas.offsetHeight;
-    canvas.width = w;
-    canvas.height = h;
-
-    var boroughData = {};
-    for (var t = 0; t < trips.length; t++) {
-        var b = trips[t].pickupBorough;
-        if (!boroughData[b]) boroughData[b] = { total: 0, count: 0 };
-        boroughData[b].total += trips[t].fareAmount;
-        boroughData[b].count++;
+/**
+ * Create borough average fare chart
+ * @param {object} data - Borough analysis data from API
+ */
+function createBoroughChart(data) {
+    if (chartRenderStates.borough) return;
+    chartRenderStates.borough = true;
+    
+    const ctx = document.getElementById('chart-borough');
+    if (!ctx) {
+        chartRenderStates.borough = false;
+        return;
     }
-
-    var boroughs = [];
-    var keys = Object.keys(boroughData);
-    for (var k = 0; k < keys.length; k++) {
-        var name = keys[k];
-        boroughs.push({
-            name: name,
-            avg: boroughData[name].total / boroughData[name].count
-        });
+    
+    if (window.boroughChart && typeof window.boroughChart.destroy === 'function') {
+        window.boroughChart.destroy();
+        window.boroughChart = null;
     }
-
-
-    for (var i = 0; i < boroughs.length - 1; i++) {
-        for (var j = i + 1; j < boroughs.length; j++) {
-            if (boroughs[j].avg > boroughs[i].avg) {
-                var temp = boroughs[i];
-                boroughs[i] = boroughs[j];
-                boroughs[j] = temp;
+    
+    // Normalize data - API returns array of {Borough, total_trips, avg_fare, ...}
+    const boroughData = Array.isArray(data) ? data : [];
+    if (boroughData.length === 0) {
+        console.warn('No borough data available');
+        chartRenderStates.borough = false;
+        return;
+    }
+    
+    // Extract labels and fares - handle different field names
+    const labels = boroughData.map(b => b.Borough ?? b.borough ?? b.pu_borough ?? 'Unknown');
+    const avgFares = boroughData.map(b => parseFloat(b.avg_fare ?? b.average_fare ?? 0));
+    
+    try {
+        window.boroughChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Average Fare ($)',
+                data: avgFares,
+                backgroundColor: chartColors.accent,
+                borderColor: chartColors.primary,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            ...defaultChartOptions,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `$${context.parsed.x.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value;
+                        }
+                    }
+                }
             }
         }
-    }
-
-    if (boroughs.length === 0) return;
-    var maxAvg = boroughs[0].avg;
-
-    var pad = { top: 15, right: 70, bottom: 15, left: 110 };
-    var chartW = w - pad.left - pad.right;
-    var chartH = h - pad.top - pad.bottom;
-    var barHeight = Math.min(30, chartH / boroughs.length - 8);
-
-    for (var i = 0; i < boroughs.length; i++) {
-        var barW = (boroughs[i].avg / maxAvg) * chartW;
-        var y = pad.top + i * (chartH / boroughs.length) + (chartH / boroughs.length - barHeight) / 2;
-
-        ctx.fillStyle = i === 0 ? chartColors.barAlt : chartColors.bar;
-        ctx.beginPath();
-        ctx.rect(pad.left, y, barW, barHeight);
-        ctx.fill();
-
-        ctx.fillStyle = chartColors.text;
-        ctx.font = '12px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(boroughs[i].name, pad.left - 10, y + barHeight / 2 + 4);
-
-        ctx.fillStyle = chartColors.textLight;
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText('$' + boroughs[i].avg.toFixed(2), pad.left + barW + 8, y + barHeight / 2 + 4);
+    });
+    } catch (error) {
+        console.error('Error creating borough chart:', error);
+    } finally {
+        chartRenderStates.borough = false;
     }
 }
 
-
-function drawDistanceChart(canvasId, trips) {
-    var canvas = document.getElementById(canvasId);
-    if (!canvas) return;
-
-    var ctx = canvas.getContext('2d');
-    var w = canvas.offsetWidth;
-    var h = canvas.offsetHeight;
-    canvas.width = w;
-    canvas.height = h;
-
-
-    var bucketCount = 16;
-    var buckets = [];
-    for (var i = 0; i < bucketCount; i++) buckets[i] = 0;
-    for (var t = 0; t < trips.length; t++) {
-        var bucket = Math.min(Math.floor(trips[t].distance), bucketCount - 1);
-        buckets[bucket]++;
+/**
+ * Create distance distribution chart
+ * @param {object} data - Distance analysis data from API
+ */
+function createDistanceChart(data) {
+    if (chartRenderStates.distance) return;
+    chartRenderStates.distance = true;
+    
+    const ctx = document.getElementById('chart-distance');
+    if (!ctx) {
+        chartRenderStates.distance = false;
+        return;
     }
-
-    var maxCount = 1;
-    for (var i = 0; i < bucketCount; i++) {
-        if (buckets[i] > maxCount) maxCount = buckets[i];
+    
+    if (window.distanceChart && typeof window.distanceChart.destroy === 'function') {
+        window.distanceChart.destroy();
+        window.distanceChart = null;
     }
-
-    var pad = { top: 20, right: 20, bottom: 40, left: 45 };
-    var chartW = w - pad.left - pad.right;
-    var chartH = h - pad.top - pad.bottom;
-    var barW = chartW / bucketCount - 2;
-
-
-    ctx.strokeStyle = chartColors.grid;
-    ctx.lineWidth = 1;
-    for (var g = 0; g <= 4; g++) {
-        var y = pad.top + (chartH / 4) * g;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(w - pad.right, y);
-        ctx.stroke();
-
-        ctx.fillStyle = chartColors.textLight;
-        ctx.font = '11px sans-serif';
-        ctx.textAlign = 'right';
-        ctx.fillText(Math.round(maxCount - (maxCount / 4) * g), pad.left - 8, y + 4);
+    
+    // Normalize data - API returns array of {distance_category, trip_count, avg_fare, ...}
+    const distanceData = Array.isArray(data) ? data : [];
+    if (distanceData.length === 0) {
+        console.warn('No distance data available');
+        chartRenderStates.distance = false;
+        return;
     }
-
-
-    for (var i = 0; i < bucketCount; i++) {
-        var barH = (buckets[i] / maxCount) * chartH;
-        var x = pad.left + i * (chartW / bucketCount) + 1;
-        var y = pad.top + chartH - barH;
-
-
-        var ratio = i / (bucketCount - 1);
-        ctx.fillStyle = mixColor(chartColors.bar, chartColors.barAlt, ratio);
-
-        ctx.beginPath();
-        ctx.rect(x, y, barW, barH);
-        ctx.fill();
-
-        if (i % 2 === 0 || i === bucketCount - 1) {
-            ctx.fillStyle = chartColors.textLight;
-            ctx.font = '10px sans-serif';
-            ctx.textAlign = 'center';
-            var distLabel = i === bucketCount - 1 ? i + '+' : i + '';
-            ctx.fillText(distLabel + ' mi', x + barW / 2, h - pad.bottom + 15);
+    
+    // Extract labels and counts - handle different field names
+    const labels = distanceData.map(d => d.distance_category ?? d.range ?? 'Unknown');
+    const counts = distanceData.map(d => d.trip_count ?? d.count ?? 0);
+    
+    try {
+        window.distanceChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Trip Count',
+                data: counts,
+                backgroundColor: chartColors.primary,
+                borderColor: chartColors.accent,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            ...defaultChartOptions,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Trips: ${context.parsed.y.toLocaleString()}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value.toLocaleString();
+                        }
+                    }
+                }
+            }
         }
-    }
-
-
-    ctx.strokeStyle = chartColors.text;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(pad.left, pad.top + chartH);
-    ctx.lineTo(w - pad.right, pad.top + chartH);
-    ctx.stroke();
+    });
+    } catch (error) {
+        console.error('Error creating distance chart:', error);    } finally {
+        chartRenderStates.distance = false;    }
 }
 
-function mixColor(hex1, hex2, ratio) {
-    var r1 = parseInt(hex1.slice(1, 3), 16);
-    var g1 = parseInt(hex1.slice(3, 5), 16);
-    var b1 = parseInt(hex1.slice(5, 7), 16);
-    var r2 = parseInt(hex2.slice(1, 3), 16);
-    var g2 = parseInt(hex2.slice(3, 5), 16);
-    var b2 = parseInt(hex2.slice(5, 7), 16);
+// ========================================
+// ANALYTICS TAB CHARTS
+// ========================================
 
-    var r = Math.round(r1 + (r2 - r1) * ratio);
-    var g = Math.round(g1 + (g2 - g1) * ratio);
-    var b = Math.round(b1 + (b2 - b1) * ratio);
+/**
+ * Create payment method distribution chart
+ * @param {object} data - Payment analysis data from API
+ */
+function createPaymentChart(data) {
+    if (chartRenderStates.payment) return;
+    chartRenderStates.payment = true;
+    
+    const ctx = document.getElementById('chart-payment');
+    if (!ctx) {
+        chartRenderStates.payment = false;
+        return;
+    }
+    
+    if (window.paymentChart && typeof window.paymentChart.destroy === 'function') {
+        window.paymentChart.destroy();
+        window.paymentChart = null;
+    }
+    
+    // Normalize data - API returns array of {payment_type, trip_count, avg_fare, ...}
+    const paymentData = Array.isArray(data) ? data : [];
+    if (paymentData.length === 0) {
+        console.warn('No payment data available');
+        chartRenderStates.payment = false;
+        return;
+    }
+    
+    // Map payment type codes to labels
+    const paymentLabels = { 1: 'Credit Card', 2: 'Cash', 3: 'No Charge', 4: 'Dispute', 5: 'Unknown', 6: 'Voided' };
+    const labels = paymentData.map(p => paymentLabels[p.payment_type] ?? p.payment_type ?? 'Unknown');
+    const counts = paymentData.map(p => p.trip_count ?? p.count ?? 0);
+    
+    try {
+        window.paymentChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: counts,
+                    backgroundColor: [
+                        chartColors.primary,
+                        chartColors.secondary,
+                        chartColors.accent,
+                        chartColors.highlight,
+                        chartColors.neutral
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                ...defaultChartOptions,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((context.parsed / total) * 100).toFixed(1);
+                                return `${context.label}: ${context.parsed.toLocaleString()} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error creating payment chart:', error);
+    } finally {
+        chartRenderStates.payment = false;
+    }
+}
 
-    return 'rgb(' + r + ',' + g + ',' + b + ')';
+/**
+ * Create average speed by hour chart
+ * @param {object} data - Speed analysis data from API
+ */
+function createSpeedChart(data) {
+    if (chartRenderStates.speed) return;
+    chartRenderStates.speed = true;
+    
+    const ctx = document.getElementById('chart-speed');
+    if (!ctx) {
+        chartRenderStates.speed = false;
+        return;
+    }
+    
+    if (window.speedChart && typeof window.speedChart.destroy === 'function') {
+        window.speedChart.destroy();
+        window.speedChart = null;
+    }
+    
+    // Normalize data - API returns array of {pickup_hour, avg_speed, trip_count, ...}
+    const speedData = Array.isArray(data) ? data : [];
+    if (speedData.length === 0) {
+        console.warn('No speed data available');
+        chartRenderStates.speed = false;
+        return;
+    }
+    
+    // Extract hours and speeds
+    const hours = speedData.map(d => d.pickup_hour ?? d.hour ?? 0);
+    const speeds = speedData.map(d => parseFloat(d.avg_speed ?? d.avg_speed_mph ?? 0));
+    
+    try {
+        window.speedChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: hours.map(h => {
+                    if (h === 0) return '12AM';
+                    if (h < 12) return `${h}AM`;
+                    if (h === 12) return '12PM';
+                    return `${h-12}PM`;
+                }),
+                datasets: [{
+                    label: 'Average Speed (mph)',
+                    data: speeds,
+                    borderColor: chartColors.accent,
+                    backgroundColor: chartColors.primary + '20',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                ...defaultChartOptions,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.parsed.y.toFixed(1)} mph`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value + ' mph';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error creating speed chart:', error);
+    } finally {
+        chartRenderStates.speed = false;
+    }
+}
+
+/**
+ * Create weekend vs weekday comparison chart
+ * @param {object} data - Weekend comparison data from API
+ */
+function createWeekendChart(data) {
+    if (chartRenderStates.weekend) return;
+    chartRenderStates.weekend = true;
+    
+    const ctx = document.getElementById('chart-weekend');
+    if (!ctx) {
+        chartRenderStates.weekend = false;
+        return;
+    }
+    
+    if (window.weekendChart && typeof window.weekendChart.destroy === 'function') {
+        window.weekendChart.destroy();
+        window.weekendChart = null;
+    }
+    
+    // Normalize data - API returns array of {day_type: 'Weekend'|'Weekday', trip_count, avg_fare, ...}
+    const comparisonData = Array.isArray(data) ? data : [];
+    if (comparisonData.length === 0) {
+        console.warn('No weekend comparison data available');
+        chartRenderStates.weekend = false;
+        return;
+    }
+    
+    // Find weekend and weekday rows
+    const weekendRow = comparisonData.find(d => d.day_type === 'Weekend') || {};
+    const weekdayRow = comparisonData.find(d => d.day_type === 'Weekday') || {};
+    
+    const categories = ['Trip Count', 'Avg Fare ($)', 'Avg Distance (mi)', 'Avg Duration (min)'];
+    const weekdayData = [
+        weekdayRow.trip_count || 0,
+        parseFloat(weekdayRow.avg_fare || 0),
+        parseFloat(weekdayRow.avg_distance || 0),
+        parseFloat(weekdayRow.avg_duration || 0)
+    ];
+    const weekendData = [
+        weekendRow.trip_count || 0,
+        parseFloat(weekendRow.avg_fare || 0),
+        parseFloat(weekendRow.avg_distance || 0),
+        parseFloat(weekendRow.avg_duration || 0)
+    ];
+    
+    try {
+        window.weekendChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: categories,
+                datasets: [
+                    {
+                        label: 'Weekday',
+                        data: weekdayData,
+                        backgroundColor: chartColors.primary,
+                        borderColor: chartColors.primary,
+                        borderWidth: 1
+                    },
+                    {
+                        label: 'Weekend',
+                        data: weekendData,
+                        backgroundColor: chartColors.secondary,
+                        borderColor: chartColors.secondary,
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                ...defaultChartOptions,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error creating weekend chart:', error);
+    } finally {
+        chartRenderStates.weekend = false;
+    }
+}
+
+/**
+ * Create tip analysis chart
+ * @param {object} data - Tip analysis data from API
+ */
+function createTipsChart(data) {
+    if (chartRenderStates.tips) return;
+    chartRenderStates.tips = true;
+    
+    const ctx = document.getElementById('chart-tips');
+    if (!ctx) {
+        chartRenderStates.tips = false;
+        return;
+    }
+    
+    if (window.tipsChart && typeof window.tipsChart.destroy === 'function') {
+        window.tipsChart.destroy();
+        window.tipsChart = null;
+    }
+    
+    // Normalize data - API returns array of {payment_type, avg_tip_pct, trip_count, ...}
+    const tipData = Array.isArray(data) ? data : [];
+    if (tipData.length === 0) {
+        console.warn('No tip data available');
+        chartRenderStates.tips = false;
+        return;
+    }
+    
+    // Map payment type codes to labels
+    const paymentLabels = { 1: 'Credit Card', 2: 'Cash', 3: 'No Charge', 4: 'Dispute', 5: 'Unknown', 6: 'Voided' };
+    const labels = tipData.map(t => paymentLabels[t.payment_type] ?? t.payment_type ?? 'Unknown');
+    const avgTips = tipData.map(t => parseFloat(t.avg_tip_pct ?? t.avg_tip ?? 0));
+    
+    try {
+        window.tipsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Average Tip %',
+                    data: avgTips,
+                    backgroundColor: chartColors.accent,
+                    borderColor: chartColors.primary,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                ...defaultChartOptions,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Avg Tip: ${context.parsed.y.toFixed(1)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error creating tips chart:', error);
+    } finally {
+        chartRenderStates.tips = false;
+    }
+}
+
+/**
+ * Create top routes chart
+ * @param {object} data - Top routes data from API
+ */
+function createRoutesChart(data) {
+    if (chartRenderStates.routes) return;
+    chartRenderStates.routes = true;
+    
+    const ctx = document.getElementById('chart-routes');
+    if (!ctx) {
+        chartRenderStates.routes = false;
+        return;
+    }
+    
+    if (window.routesChart && typeof window.routesChart.destroy === 'function') {
+        window.routesChart.destroy();
+        window.routesChart = null;
+    }
+    
+    // Validate data
+    let routes = Array.isArray(data) ? data : (data.routes || []);
+    if (routes.length === 0) {
+        console.warn('Invalid data for routes chart, using fallback');
+        routes = [{ pickup_zone: 'No Data', dropoff_zone: 'Available', trip_count: 0 }];
+    }
+    const labels = routes.map(r => `${r.pickup_zone} → ${r.dropoff_zone}`);
+    const counts = routes.map(r => r.trip_count || 0);
+    
+    try {
+        window.routesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Trip Count',
+                    data: counts,
+                    backgroundColor: chartColors.secondary,
+                    borderColor: chartColors.highlight,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                ...defaultChartOptions,
+                indexAxis: 'y',
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Trips: ${context.parsed.x.toLocaleString()}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error creating routes chart:', error);
+    } finally {
+        chartRenderStates.routes = false;
+    }
 }
