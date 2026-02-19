@@ -72,3 +72,18 @@ CREATE TABLE trips (
     FOREIGN KEY (PULocationID) REFERENCES zones(LocationID) ON DELETE SET NULL,
     FOREIGN KEY (DOLocationID) REFERENCES zones(LocationID) ON DELETE SET NULL
 );
+
+-- excluded_data_log table
+-- Tracks data quality issues and rejected records during ETL process
+CREATE TABLE excluded_data_log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    issue_type VARCHAR(50) NOT NULL,
+    trip_identifier VARCHAR(255),
+    field_name VARCHAR(50),
+    issue_description TEXT,
+    action_taken VARCHAR(100),
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_issue_type (issue_type),
+    INDEX idx_logged_at (logged_at)
+);
