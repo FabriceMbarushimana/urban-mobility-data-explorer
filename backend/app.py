@@ -304,3 +304,48 @@ def get_weekend_comparison():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
   
+
+# STATUS CHECK & ERROR HANDLERS
+
+
+@app.route('/api/status', methods=['GET'])
+def status_check():
+    """
+    Status check endpoint to verify API is running
+    
+    Returns:
+        JSON: Service status and name
+    """
+    return jsonify({'status': 'App is runing', 'service': 'Urban Mobility Explorer API'})
+
+@app.errorhandler(404)
+def not_found(e):
+    """Handle 404 errors - Route not found"""
+    return jsonify({'error': 'Route not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(e):
+    """Handle 500 errors - Internal server error"""
+    return jsonify({'error': 'Internal server error'}), 500
+
+
+# APPLICATION ENTRY POINT
+
+
+if __name__ == '__main__':
+    # Display startup information
+    print("\n" + "="*70)
+    print("URBAN MOBILITY EXPLORER API (MySQL)")
+    print("="*70)
+    print("Database: MySQL - urban_mobility")
+    print("API URL: http://127.0.0.1:5000")
+    print("Authentication: DISABLED (No login required)")
+    print("="*70)
+    print("\n Server starting...")
+    print("Keep this terminal open while using the app!")
+    print("Press CTRL+C to stop the server")
+    print("="*70 + "\n")
+    
+    # Run Flask development server
+    # Note: For production, use a production WSGI server like Gunicorn
+    app.run(debug=True, host='127.0.0.1', port=5000)
