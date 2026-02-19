@@ -173,3 +173,134 @@ def get_fare_distribution():
         return jsonify(distribution)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/distance', methods=['GET'])
+def get_distance_analysis():
+    """
+    Get distance-based insights and patterns
+    
+    Returns:
+        JSON: Statistics about trip distances, averages, and distributions
+    """
+    try:
+        analysis = db_handler.get_distance_analysis()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# API ENDPOINTS - ROUTES
+
+
+@app.route('/api/routes/top', methods=['GET'])
+def get_top_routes():
+    """
+    Get most popular routes using custom sorting algorithm
+    
+    Query Parameters:
+        limit (int): Number of top routes to return (default: 10)
+    
+    Returns:
+        JSON: List of most frequent pickup-dropoff location pairs
+    """
+    try:
+        limit = int(request.args.get('limit', 10))
+        routes = db_handler.get_top_routes(limit)
+        
+        # Apply custom sorting algorithm for ranking
+        if routes:
+            sorter = CustomSort()
+            routes = sorter.sort_by_trip_count(routes)
+        
+        return jsonify(routes)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/payment', methods=['GET'])
+def get_payment_analysis():
+    """
+    Get payment type distribution (credit card, cash, etc.)
+    
+    Returns:
+        JSON: Breakdown of trips by payment method
+    """
+    try:
+        analysis = db_handler.get_payment_analysis()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/speed', methods=['GET'])
+def get_speed_analysis():
+    """
+    Get average speed analysis by hour of day
+    
+    Returns:
+        JSON: Speed patterns throughout the day (mph or km/h)
+    """
+    try:
+        analysis = db_handler.get_speed_analysis()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/tips', methods=['GET'])
+def get_tip_analysis():
+    """
+    Get tip percentage analysis and patterns
+    
+    Returns:
+        JSON: Tipping statistics including average tips, ranges, and patterns
+    """
+    try:
+        analysis = db_handler.get_tip_analysis()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# API ENDPOINTS - CUSTOM INSIGHTS
+
+
+@app.route('/api/insights/custom', methods=['GET'])
+def get_custom_insights():
+    """
+    Get insights using custom algorithms (outlier detection, aggregation)
+    
+    Returns:
+        JSON: Custom analysis results including outliers and aggregated data
+    """
+    try:
+        # Fetch trips data for custom analysis
+        trips = db_handler.get_trips_for_analysis()
+        
+        # Apply custom outlier detection algorithm
+        outlier_detector = OutlierDetector()
+        outliers = outlier_detector.detect_fare_outliers(trips)
+        
+        # Apply custom aggregation algorithm
+        aggregator = TripAggregator()
+        aggregated = aggregator.aggregate_by_hour(trips)
+        
+        return jsonify({
+            'outliers_detected': len(outliers),
+            'hourly_aggregation': aggregated,
+            'outlier_samples': outliers[:10]  # Return sample of outliers
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/weekend-comparison', methods=['GET'])
+def get_weekend_comparison():
+    """
+    Get weekend vs weekday comparison statistics
+    
+    Returns:
+        JSON: Comparative analysis between weekend and weekday patterns
+    """
+    try:
+        comparison = db_handler.get_weekend_comparison()
+        return jsonify(comparison)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+  
