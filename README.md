@@ -1,224 +1,405 @@
-# Urban Mobility Explorer - Backend API Documentation
+# Urban Mobility Data Explorer
 
-Complete documentation for the Urban Mobility Explorer RESTful API.
+A comprehensive data analysis platform for exploring NYC taxi trip patterns using custom algorithms and real-world datasets. This project implements ETL pipelines, custom sorting and outlier detection algorithms, and a RESTful API for analyzing urban transportation data.
+
+**Repository:** [https://github.com/FabriceMbarushimana/urban-mobility-data-explorer](https://github.com/FabriceMbarushimana/urban-mobility-data-explorer)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Features](#features)
 - [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Base URL](#base-url)
-- [Response Format](#response-format)
-- [Error Handling](#error-handling)
+- [Technology Stack](#technology-stack)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Running the Application](#running-the-application)
 - [API Endpoints](#api-endpoints)
-  - [Status Check](#status-check)
-  - [Statistics](#statistics)
-  - [Trip Data](#trip-data)
-  - [Analysis](#analysis)
-  - [Routes](#routes)
-  - [Custom Insights](#custom-insights)
-- [Data Models](#data-models)
-- [Filtering & Pagination](#filtering--pagination)
-- [Examples](#examples)
+- [File Descriptions](#file-descriptions)
+- [Custom Algorithms](#custom-algorithms)
+- [Database Schema](#database-schema)
+- [Data Sources](#data-sources)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
 ---
 
 ## Overview
 
-The Urban Mobility Explorer API provides access to NYC taxi trip data analytics. This API offers:
+This project analyzes NYC taxi trip data (Yellow Cab January 2019) to uncover insights about urban mobility patterns. It features:
+- **ETL Pipeline**: Loads, cleans, and processes 15,000+ trip records
+- **Custom Algorithms**: QuickSort, IQR outlier detection, manual aggregation without libraries
+- **RESTful API**: 13 endpoints for querying trip statistics and patterns
+- **MySQL Database**: 4-table schema with foreign key relationships and 11 indexes
+- **Geospatial Analysis**: Borough-level insights using NYC taxi zone shapefiles with 265 zones
 
-- **13 endpoints** for comprehensive data analysis
-- **RESTful design** with JSON responses
-- **Flexible filtering** by borough, fare, distance, time, and more
-- **Pagination support** for large datasets
-- **Custom algorithms** for advanced insights (QuickSort, IQR outlier detection)
-- **4-table database** with foreign key relationships and comprehensive indexing
+---
 
-**Technology Stack:**
-- Flask 3.1.2 (Python web framework)
-- MySQL 8.0+ (Database)
-- Flask-CORS (Cross-origin support)
+## Features
+
+- **Data Processing**
+  - ETL pipeline with 6 processing steps
+  - Data cleaning (outlier removal, validation)
+  - Feature engineering (speed calculation, trip duration, time categorization)
+  - Batch database insertion (1000 records/batch)
+
+- **Custom Algorithm Implementations**
+  - QuickSort algorithm (O(n log n) average complexity)
+  - IQR-based outlier detection
+  - Manual hourly aggregation
+  - Traffic congestion hour identification
+
+- **Analytics API**
+  - 13 RESTful endpoints for comprehensive analysis
+  - Summary statistics across entire dataset
+  - Hourly and borough-level analysis
+  - Route popularity ranking
+  - Payment type and tip analysis
+  - Speed and fare distribution patterns
+  - Weekend vs weekday comparisons
+
+- **Database**
+  - MySQL with optimized indexing and foreign key relationships
+  - 4 tables: zones (4 columns), taxi_zones (6 columns), trips (30 columns), excluded_data_log (7 columns)
+  - 11 indexes for query performance
+  - Foreign keys ensuring referential integrity
 
 ---
 
 ## Project Structure
 
 ```
-Urban-Mobility-Explorer/
-├── .env                          # Environment variables (DB credentials)
-├── .env.example                  # Environment template
-├── .gitignore                    # Git ignore rules
-├── README.md                     # Project documentation
-├── DEPLOY.md                     # Deployment guide
-├── requirements.txt              # Python dependencies
-│
-├── backend/                      #  Flask API Server
-│   ├── app.py                    # Main Flask application (13 API endpoints)
-│   ├── database_operations.py    # Database handler class (CRUD operations)
-│   ├── custom_algorithms.py      # Custom algorithms (QuickSort, IQR outlier detection)
-│   ├── main.py                   # ETL pipeline (data loading & processing)
-│   ├── README.md                 # API documentation (this file)
-│   ├── processed/                # Processed data outputs
-│   │   └── taxi_zones_final.json # Cleaned zone data
-│   └── rejected_data/            # Data quality rejects (from ETL)
-│
-├── frontend/                     #  Web Dashboard
-│   ├── index.html                # Main HTML (tabbed interface)
-│   ├── styles.css                # CSS styling
-│   ├── frontend_doc.md           # Frontend documentation
-│   └── js/                       # JavaScript modules
-│       ├── api.js                # API integration layer (fetch calls)
-│       ├── app.js                # Main application logic (tab switching)
-│       ├── charts.js             # Chart.js visualizations (8 charts)
-│       ├── filters.js            # Filter & sort functionality
-│       └── data.js               # Static data mappings
-│
-├── data/                         #  Raw Data Files
-│   ├── yellow_tripdata_2019-01.csv    # NYC taxi trip records (~7.6M rows)
-│   ├── taxi_zone_lookup.csv           # Zone ID to name mapping
-│   ├── taxi_zones.json                # Zone boundaries (GeoJSON)
-│   ├── taxi_zones.shp                 # Shapefile (main geometry)
-│   ├── taxi_zones.dbf                 # Shapefile attributes
-│   ├── taxi_zones.prj                 # Shapefile projection
-│   ├── taxi_zones.shx                 # Shapefile index
-│   ├── taxi_zones.sbn                 # Shapefile spatial index
-│   ├── taxi_zones.sbx                 # Shapefile spatial index
-│   └── taxi_zones.shp.xml             # Shapefile metadata
-│
-└── Database/                     #  Database Schema
-    └── db_design.sql             # MySQL schema definition
+urban-mobility-data-explorer/
+├── backend/
+│   ├── app.py                      # Flask API server (13 endpoints)
+│   ├── database_operations.py      # MySQL database handler
+│   ├── main.py                     # ETL pipeline script
+│   ├── custom_algorithms.py        # Custom sort/analysis algorithms
+│   └── README.md                   # Backend API documentation
+├── data/
+│   ├── yellow_tripdata_2019-01.csv # NYC taxi trip data (15,000 records)
+│   ├── taxi_zone_lookup.csv        # Zone ID to borough mapping (265 zones)
+│   ├── taxi_zones.json             # Geographic zone data (265 zones)
+│   └── taxi_zones.*                # Shapefile for geospatial analysis
+├── Database/
+│   └── db_design.sql               # MySQL schema (4 tables with relationships)
+├── frontend/                       # (Frontend files - to be added)
+├── .env                            # Database credentials (not in repo)
+├── .env.example                    # Environment variable template
+├── .gitignore                      # Git ignore rules
+├── requirements.txt                # Python dependencies
+└── README.md                       # This file
 ```
-
-### Key Files Description
-
-| File | Purpose |
-|------|---------|
-| `backend/app.py` | Flask server with 13 REST API endpoints |
-| `backend/database_operations.py` | DatabaseHandler class with all SQL queries |
-| `backend/custom_algorithms.py` | QuickSort, IQR outlier detection, manual aggregation |
-| `backend/main.py` | ETL pipeline: loads CSV, processes data, inserts to MySQL |
-| `frontend/js/api.js` | All fetch() calls to backend API |
-| `frontend/js/charts.js` | 8 Chart.js visualizations |
-| `frontend/js/app.js` | Tab switching, data loading orchestration |
-| `Database/db_design.sql` | CREATE TABLE statements for MySQL |
 
 ---
 
-## Getting Started
+## Technology Stack
 
-### Prerequisites
+**Backend:**
+- Python 3.8+
+- Flask 3.1.2 (Web framework)
+- Flask-CORS 6.0.2 (Cross-origin support)
 
-1. **MySQL Server** running with `urban_mobility` database
-2. **Python 3.8+** with dependencies installed
-3. **Environment variables** configured in `.env` file
+**Database:**
+- MySQL 8.0+
+- mysql-connector-python
 
-### Start the Server
+**Data Processing:**
+- pandas 3.0.0 (Data manipulation)
+- geopandas 1.1.2 (Geospatial analysis)
+- numpy 2.4.2 (Numerical operations)
+
+**Configuration:**
+- python-dotenv 1.2.1 (Environment management)
+
+---
+
+## Prerequisites
+
+Before installation, ensure you have:
+
+1. **Python 3.8 or higher**
+   ```bash
+   python --version
+   ```
+
+2. **MySQL Server 8.0 or higher**
+   - Download: [https://dev.mysql.com/downloads/mysql/](https://dev.mysql.com/downloads/mysql/)
+   - Ensure MySQL service is running
+
+3. **pip** (Python package manager)
+   ```bash
+   pip --version
+   ```
+
+4. **Git** (for cloning the repository)
+   ```bash
+   git --version
+   ```
+
+---
+
+## Installation
+
+### Step 1: Clone the Repository
+
+```bash
+git clone https://github.com/FabriceMbarushimana/urban-mobility-data-explorer.git
+cd urban-mobility-data-explorer
+```
+
+### Step 2: Install Python Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+**Dependencies installed:**
+- Flask and flask-cors (API server)
+- pandas, geopandas, numpy (Data processing)
+- PyMySQL, SQLAlchemy (Database connectivity)
+- python-dotenv (Environment configuration)
+- shapely, pyproj, pyogrio (Geospatial operations)
+
+### Step 3: Set Up MySQL Database
+
+1. **Start MySQL Server**
+   ```bash
+   # Windows
+   net start MySQL80
+
+   # macOS/Linux
+   sudo systemctl start mysql
+   ```
+
+2. **Create Database**
+   ```bash
+   mysql -u root -p
+   ```
+   ```sql
+   CREATE DATABASE urban_mobility;
+   EXIT;
+   ```
+
+3. **Import Schema**
+   ```bash
+   mysql -u root -p urban_mobility < Database/db_design.sql
+   ```
+
+### Step 4: Configure Environment Variables
+
+1. **Create `.env` file** (copy from example):
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` file** with your database credentials:
+   ```env
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=your_mysql_password
+   DB_NAME=urban_mobility
+   DB_PORT=3306
+   ```
+
+---
+
+## Configuration
+
+### Environment Variables (.env)
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DB_HOST` | MySQL server hostname | `localhost` |
+| `DB_USER` | MySQL username | `root` |
+| `DB_PASSWORD` | MySQL password | `my_secure_password` |
+| `DB_NAME` | Database name | `urban_mobility` |
+| `DB_PORT` | MySQL port | `3306` |
+
+### API Configuration (app.py)
+
+- **Port**: 5000 (default)
+- **Host**: 127.0.0.1
+- **CORS Origins**: `http://localhost:5500`, `http://127.0.0.1:5500`
+- **Session Lifetime**: 24 hours
+- **Debug Mode**: Enabled (disable in production)
+
+---
+
+## Running the Application
+
+### Step 1: Load Data (ETL Pipeline)
+
+Run the ETL script to process and load data into MySQL:
+
+```bash
+cd backend
+python main.py
+```
+
+**What this does:**
+1. [LOADING] Reads CSV files (15,000 trip records) + zone lookup (265 zones) + taxi_zones.json (265 zones)
+2. [INTEGRATION] Merges trips with zone/borough information
+3. [CLEANING] Removes invalid dates, outliers using IQR method (~300-5,000 records rejected)
+4. [ENGINEERING] Calculates speed, duration, tip percentage, fare/distance categories
+5. [DATABASE] Creates 4 tables with indexes/FKs, inserts zones → taxi_zones → trips
+6. [EXPORT] Generates GeoJSON file for mapping
+
+**Expected output:**
+```
+====================================================================
+              NYC TAXI DATA ETL PIPELINE (Sample Mode)
+====================================================================
+Database: urban_mobility (MySQL)
+Sample Size: 15000 rows
+====================================================================
+
+STEP 1: Loading data files...
+   > Loading taxi trip data (15,000 rows sample)...
+   [OK] Loaded 15,000 trip records
+   > Loading zone lookup table...
+   [OK] Loaded 265 zones
+   > Loading taxi zones geographic data...
+   [OK] Loaded 265 taxi zones
+   > Loading spatial data (shapefiles)...
+   [OK] Loaded 265 geographic zones
+
+STEP 2: Integrating datasets...
+   > Joining trip data with pickup zone information...
+   [OK] Pickup zones merged successfully
+   > Joining trip data with dropoff zone information...
+   [OK] Dropoff zones merged successfully
+   [OK] Final merged dataset: 15,000 records with 35 columns
+
+STEP 3: Cleaning and validating data...
+   > Removing invalid dates...
+   [OK] Date validation complete: 14,950 records
+   > Detecting and removing outliers (IQR method)...
+   [OK] Outlier removal complete: 14,684 valid records
+   [INFO] Records removed: 316
+
+STEP 4: Feature engineering...
+   > Calculating trip duration...
+   [OK] Duration calculated
+   > Calculating average speed...
+   [OK] Speed calculated
+   > Creating fare categories...
+   [OK] Fare ranges created (4 brackets)
+   > Creating distance categories...
+   [OK] Distance categories created (5 brackets)
+   [INFO] Feature engineering complete: 39 total columns
+
+STEP 5: Loading data into MySQL database...
+   > Connecting to MySQL server...
+   [OK] Connected to MySQL server at localhost:3306
+   > Setting up database 'urban_mobility'...
+   [OK] Database 'urban_mobility' ready
+   > Dropping existing tables (if any)...
+   [OK] Old tables removed (fresh start)
+   [OK] Database schema created successfully
+        - zones table (4 columns, 2 indexes)
+        - taxi_zones table (6 columns, 3 indexes, 1 FK)
+        - trips table (30 columns, 6 indexes, 2 FKs)
+        - excluded_data_log table (7 columns, 2 indexes)
+   
+   > Inserting zone lookup data...
+   [OK] Zone lookup data inserted (265 zones)
+   
+   > Inserting taxi zones geographic data...
+   [OK] Taxi zones geographic data inserted (265 zones)
+   
+   > Inserting trip records into database...
+     Total records to insert: 14,684
+     Progress: 1,000/14,684 records (6.8%)
+     Progress: 2,000/14,684 records (13.6%)
+     ...
+     Progress: 14,684/14,684 records (100.0%)
+   [OK] All trip records inserted successfully! (14,684 records)
+   
+   [SUCCESS] Database population complete!
+      Database: urban_mobility
+      Trip records: 14,684
+      Zone records: 265
+      Taxi zones: 265
+      Excluded data log: Ready for tracking
+
+STEP 6: Exporting GeoJSON for mapping...
+   > Converting spatial data to GeoJSON format...
+   [OK] GeoJSON exported to: ../data/taxi_zones.geojson
+
+====================================================================
+ETL PIPELINE COMPLETED SUCCESSFULLY
+====================================================================
+Summary:
+   - Loaded: 15,000 raw records
+   - Cleaned: 14,684 valid records
+   - Rejected: 316 invalid records
+   - Database: urban_mobility
+   - Tables: trips (14,684 rows), zones (265 rows), taxi_zones (265 rows)
+   - GeoJSON: ../data/taxi_zones.geojson
+
+Your data is ready! You can now run app.py to start the API server.
+====================================================================
+```
+
+### Step 2: Start the API Server
+
+In a new terminal (keep the database running):
 
 ```bash
 cd backend
 python app.py
 ```
 
-The server will start on `http://127.0.0.1:5000`
+**Expected output:**
+```
+======================================================================
+                URBAN MOBILITY EXPLORER API (MySQL)
+======================================================================
+Database: MySQL - urban_mobility
+API URL: http://127.0.0.1:5000
+Authentication: DISABLED (No login required)
+======================================================================
 
-### Quick Test
+ Server starting...
+Keep this terminal open while using the app!
+Press CTRL+C to stop the server
+======================================================================
+
+ * Running on http://127.0.0.1:5000
+```
+
+### Step 3: Test the API
+
+Open your browser or use curl:
 
 ```bash
+# Status check
 curl http://127.0.0.1:5000/api/status
-```
 
-Expected response:
-```json
-{
-  "status": "healthy",
-  "service": "Urban Mobility Explorer API"
-}
-```
+# Get summary statistics
+curl http://127.0.0.1:5000/api/stats/summary
 
----
-
-## Base URL
-
-```
-http://127.0.0.1:5000
-```
-
-All endpoints are relative to this base URL.
-
-**Development:** `http://127.0.0.1:5000`  
-**Production:** Update to your production domain
-
----
-
- 
-
-## Response Format
-
-All responses are returned in JSON format.
-
-### Success Response
-
-```json
-{
-  "data": { /* response data */ }
-}
-```
-
-### Error Response
-
-```json
-{
-  "error": "Error message description"
-}
-```
-
-**HTTP Status Codes:**
-- `200` - Success
-- `404` - Endpoint not found
-- `500` - Internal server error
-
----
-
-## Error Handling
-
-### Common Errors
-
-**404 - Route Not Found**
-```json
-{
-  "error": "Route not found"
-}
-```
-
-**500 - Internal Server Error**
-```json
-{
-  "error": "Database connection failed"
-}
-```
-
-**Invalid Parameters**
-```json
-{
-  "error": "invalid literal for int() with base 10: 'abc'"
-}
+# Get trips (first 10)
+curl http://127.0.0.1:5000/api/trips/list?limit=10
 ```
 
 ---
 
 ## API Endpoints
 
-### Status Check
+### Base URL
+```
+http://127.0.0.1:5000
+```
+
+### Health & Status
 
 #### `GET /api/status`
-
-Check if the API server is running and healthy.
-
-**Parameters:** None
-
-**Response:**
+**Description:** Status check endpoint  
+**Returns:**
 ```json
 {
   "status": "healthy",
@@ -226,143 +407,79 @@ Check if the API server is running and healthy.
 }
 ```
 
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/status
-```
-
 ---
 
-### Statistics
+### Statistics Endpoints
 
 #### `GET /api/stats/summary`
-
-Get overall summary statistics for the entire dataset.
-
-**Parameters:** None
-
-**Response Fields:**
-| Field | Type | Description |
-|-------|------|-------------|
-| `total_trips` | int | Total number of trips |
-| `avg_fare` | float | Average fare amount ($) |
-| `avg_distance` | float | Average trip distance (miles) |
-| `avg_duration` | float | Average trip duration (minutes) |
-| `total_revenue` | float | Sum of all fares ($) |
-| `avg_passengers` | float | Average passengers per trip |
-| `avg_tip` | float | Average tip amount ($) |
-| `avg_speed` | float | Average speed (mph) |
-
-**Example Response:**
+**Description:** Overall dataset summary statistics  
+**Returns:**
 ```json
 {
   "total_trips": 10234,
   "avg_fare": 12.45,
   "avg_distance": 2.87,
-  "avg_duration": 13.54,
+  "avg_duration": 13.5,
   "total_revenue": 127543.20,
-  "avg_passengers": 1.62,
-  "avg_tip": 2.15,
-  "avg_speed": 12.7
+  "avg_passengers": 1.6
 }
-```
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/stats/summary
 ```
 
 ---
 
-### Trip Data
+### Trip Data Endpoints
 
 #### `GET /api/trips/list`
-
-Retrieve trip records with optional filtering and pagination.
-
+**Description:** Get trips with filtering and pagination  
 **Query Parameters:**
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `limit` | int | Records to return | 100 |
+| `offset` | int | Records to skip | 0 |
+| `borough` | string | Filter by borough | None |
+| `min_fare` | float | Minimum fare | None |
+| `max_fare` | float | Maximum fare | None |
+| `min_distance` | float | Minimum distance | None |
+| `max_distance` | float | Maximum distance | None |
+| `start_date` | string | Start date (YYYY-MM-DD) | None |
+| `end_date` | string | End date (YYYY-MM-DD) | None |
+| `hour` | int | Hour of day (0-23) | None |
+| `is_weekend` | bool | Weekend filter | None |
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | int | 100 | Number of records to return (max recommended: 1000) |
-| `offset` | int | 0 | Number of records to skip (for pagination) |
-| `borough` | string | null | Filter by NYC borough (Manhattan, Brooklyn, Queens, Bronx, Staten Island) |
-| `min_fare` | float | null | Minimum fare amount ($) |
-| `max_fare` | float | null | Maximum fare amount ($) |
-| `min_distance` | float | null | Minimum trip distance (miles) |
-| `max_distance` | float | null | Maximum trip distance (miles) |
-| `start_date` | string | null | Start date filter (YYYY-MM-DD format) |
-| `end_date` | string | null | End date filter (YYYY-MM-DD format) |
-| `hour` | int | null | Filter by hour of day (0-23) |
-| `is_weekend` | bool | null | Filter weekend trips (true/false) |
+**Example Request:**
+```bash
+curl "http://127.0.0.1:5000/api/trips/list?borough=Manhattan&limit=5&min_fare=10"
+```
 
-**Response Structure:**
+**Returns:**
 ```json
 {
   "trips": [
     {
       "id": 1,
-      "VendorID": 1,
-      "tpep_pickup_datetime": "2019-01-01 00:46:40",
-      "tpep_dropoff_datetime": "2019-01-01 00:53:20",
+      "pickup_datetime": "2019-01-01 00:46:40",
+      "dropoff_datetime": "2019-01-01 00:53:20",
       "passenger_count": 1,
       "trip_distance": 1.5,
       "fare_amount": 7.0,
       "tip_amount": 1.65,
       "total_amount": 11.15,
       "pu_borough": "Manhattan",
-      "pu_zone": "East Harlem North",
       "do_borough": "Manhattan",
-      "do_zone": "Upper East Side North",
       "duration_mins": 6.67,
-      "avg_speed_mph": 13.5,
-      "tip_percentage": 23.57,
-      "pickup_hour": 0,
-      "fare_range": "$5-$15",
-      "distance_category": "short"
+      "avg_speed_mph": 13.5
     }
   ]
 }
 ```
 
-**Examples:**
-
-1. Get first 10 trips:
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?limit=10"
-```
-
-2. Get Manhattan trips with fare $10-$20:
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?borough=Manhattan&min_fare=10&max_fare=20&limit=50"
-```
-
-3. Get trips during rush hour (8 AM):
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?hour=8&limit=100"
-```
-
-4. Get weekend trips:
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?is_weekend=true&limit=50"
-```
-
-5. Pagination example (page 2, 50 per page):
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?limit=50&offset=50"
-```
-
 ---
 
-### Analysis
+### Analysis Endpoints
 
 #### `GET /api/analysis/hourly-patterns`
-
-Get trip patterns aggregated by hour of day (0-23).
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Trip patterns by hour of day  
+**Returns:**
 ```json
 [
   {
@@ -370,39 +487,14 @@ Get trip patterns aggregated by hour of day (0-23).
     "trip_count": 245,
     "avg_fare": 11.23,
     "avg_distance": 2.1,
-    "avg_speed": 18.5,
-    "total_revenue": 2751.35
-  },
-  {
-    "hour": 1,
-    "trip_count": 189,
-    "avg_fare": 10.87,
-    "avg_distance": 1.9,
-    "avg_speed": 17.2,
-    "total_revenue": 2054.43
+    "avg_speed": 18.5
   }
 ]
 ```
 
-**Use Cases:**
-- Identify peak hours
-- Analyze demand patterns
-- Traffic speed analysis by time
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/hourly-patterns
-```
-
----
-
 #### `GET /api/analysis/borough`
-
-Get analysis grouped by NYC borough for both pickup and dropoff locations.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Analysis by NYC borough  
+**Returns:**
 ```json
 {
   "pickup": [
@@ -410,401 +502,129 @@ Get analysis grouped by NYC borough for both pickup and dropoff locations.
       "borough": "Manhattan",
       "trip_count": 7543,
       "avg_fare": 13.45,
-      "avg_distance": 2.34,
-      "total_revenue": 101453.35
-    },
-    {
-      "borough": "Brooklyn",
-      "trip_count": 1234,
-      "avg_fare": 12.10,
-      "avg_distance": 3.21,
-      "total_revenue": 14931.40
+      "avg_distance": 2.3
     }
   ],
-  "dropoff": [
-    {
-      "borough": "Manhattan",
-      "trip_count": 7321,
-      "avg_fare": 13.21,
-      "avg_distance": 2.28,
-      "total_revenue": 96731.41
-    }
-  ]
+  "dropoff": [ /* similar structure */ ]
 }
 ```
 
-**Use Cases:**
-- Compare boroughs
-- Identify high-demand areas
-- Revenue analysis by location
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/borough
-```
-
----
-
 #### `GET /api/analysis/fare-distribution`
-
-Get distribution of trips across fare brackets.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Fare amount distribution  
+**Returns:**
 ```json
 [
   {
-    "fare_range": "$0-$5",
-    "trip_count": 1234,
-    "percentage": 12.06,
-    "total_revenue": 4567.89
-  },
-  {
-    "fare_range": "$5-$10",
+    "fare_range": "$0-$10",
     "trip_count": 3421,
-    "percentage": 33.43,
-    "total_revenue": 25678.43
-  },
-  {
-    "fare_range": "$10-$15",
-    "trip_count": 2876,
-    "percentage": 28.11,
-    "total_revenue": 35432.21
-  },
-  {
-    "fare_range": "$15+",
-    "trip_count": 2703,
-    "percentage": 26.41,
-    "total_revenue": 61865.67
+    "percentage": 33.4
   }
 ]
 ```
 
-**Fare Ranges:**
-- `$0-$5` - Very short trips
-- `$5-$10` - Short trips
-- `$10-$15` - Medium trips
-- `$15+` - Long trips
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/fare-distribution
-```
-
----
-
 #### `GET /api/analysis/distance`
-
-Get distance-based insights and patterns.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Distance-based insights  
+**Returns:**
 ```json
 {
   "avg_distance": 2.87,
-  "total_distance": 29378.54,
-  "max_distance": 18.5,
-  "min_distance": 0.1,
+  "total_distance": 29378.5,
   "distance_categories": [
     {
       "category": "short",
-      "description": "0-2 miles",
       "count": 6543,
-      "percentage": 63.94
-    },
-    {
-      "category": "medium",
-      "description": "2-5 miles",
-      "count": 2876,
-      "percentage": 28.11
-    },
-    {
-      "category": "long",
-      "description": "5+ miles",
-      "count": 815,
-      "percentage": 7.96
+      "percentage": 63.9
     }
   ]
 }
 ```
 
-**Distance Categories:**
-- **Short:** 0-2 miles
-- **Medium:** 2-5 miles
-- **Long:** 5+ miles
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/distance
-```
-
----
-
 #### `GET /api/analysis/payment`
-
-Get payment type distribution and patterns.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Payment type distribution  
+**Returns:**
 ```json
 [
   {
     "payment_type": 1,
     "payment_name": "Credit Card",
     "trip_count": 7234,
-    "percentage": 70.68,
-    "avg_fare": 13.21,
-    "avg_tip": 2.45
-  },
-  {
-    "payment_type": 2,
-    "payment_name": "Cash",
-    "trip_count": 2543,
-    "percentage": 24.85,
-    "avg_fare": 11.54,
-    "avg_tip": 0.0
-  },
-  {
-    "payment_type": 3,
-    "payment_name": "No Charge",
-    "trip_count": 321,
-    "percentage": 3.14,
-    "avg_fare": 0.0,
-    "avg_tip": 0.0
+    "percentage": 70.7
   }
 ]
 ```
 
-**Payment Types:**
-- `1` - Credit Card
-- `2` - Cash
-- `3` - No Charge
-- `4` - Dispute
-- `5` - Unknown
-- `6` - Voided trip
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/payment
-```
-
----
-
 #### `GET /api/analysis/speed`
-
-Get average speed analysis by hour of day.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Average speed by hour  
+**Returns:**
 ```json
 [
   {
     "hour": 0,
-    "avg_speed_mph": 18.54,
-    "trip_count": 245,
-    "speed_category": "fast"
-  },
-  {
-    "hour": 8,
-    "avg_speed_mph": 8.21,
-    "trip_count": 876,
-    "speed_category": "slow"
-  },
-  {
-    "hour": 17,
-    "avg_speed_mph": 7.65,
-    "trip_count": 1234,
-    "speed_category": "slow"
+    "avg_speed_mph": 18.5,
+    "trip_count": 245
   }
 ]
 ```
 
-**Speed Categories:**
-- **Fast:** 15+ mph (low traffic)
-- **Normal:** 10-15 mph (moderate traffic)
-- **Slow:** < 10 mph (congested)
-
-**Use Cases:**
-- Traffic congestion analysis
-- Rush hour identification
-- Route optimization
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/speed
-```
-
----
-
 #### `GET /api/analysis/tips`
-
-Get tip percentage analysis and tipping patterns.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Tip percentage analysis  
+**Returns:**
 ```json
 {
-  "avg_tip_percentage": 18.54,
+  "avg_tip_percentage": 18.5,
   "avg_tip_amount": 2.34,
   "trips_with_tips": 7234,
-  "trips_without_tips": 3000,
-  "tip_percentage_distribution": [
-    {
-      "range": "0%",
-      "count": 3000,
-      "percentage": 29.31
-    },
-    {
-      "range": "10-15%",
-      "count": 1234,
-      "percentage": 12.06
-    },
-    {
-      "range": "15-20%",
-      "count": 3421,
-      "percentage": 33.43
-    },
-    {
-      "range": "20-25%",
-      "count": 1876,
-      "percentage": 18.34
-    },
-    {
-      "range": "25%+",
-      "count": 703,
-      "percentage": 6.87
-    }
-  ]
+  "tip_ranges": [ /* distribution data */ ]
 }
 ```
 
-**Use Cases:**
-- Tipping behavior analysis
-- Payment method correlation
-- Service quality insights
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/tips
-```
-
----
-
 #### `GET /api/analysis/weekend-comparison`
-
-Compare weekend vs weekday trip patterns.
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Weekend vs weekday patterns  
+**Returns:**
 ```json
 {
   "weekday": {
     "trip_count": 7234,
-    "avg_fare": 12.45,
-    "avg_distance": 2.67,
-    "avg_speed": 11.23,
-    "total_revenue": 90063.30,
-    "avg_tip_percentage": 17.89
+    "avg_fare": 12.45
   },
   "weekend": {
     "trip_count": 3000,
-    "avg_fare": 13.21,
-    "avg_distance": 3.12,
-    "avg_speed": 13.54,
-    "total_revenue": 39630.00,
-    "avg_tip_percentage": 19.45
-  },
-  "comparison": {
-    "fare_difference": 0.76,
-    "distance_difference": 0.45,
-    "speed_difference": 2.31,
-    "tip_difference": 1.56
+    "avg_fare": 13.21
   }
 }
 ```
 
-**Use Cases:**
-- Identify weekend travel patterns
-- Compare demand across week
-- Revenue forecasting
-
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/analysis/weekend-comparison
-```
-
 ---
 
-### Routes
+### Route Endpoints
 
 #### `GET /api/routes/top`
-
-Get most popular routes ranked by trip count using custom QuickSort algorithm.
-
+**Description:** Most popular routes (uses custom QuickSort)  
 **Query Parameters:**
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|---------|
+| `limit` | int | Top N routes | 10 |
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `limit` | int | 10 | Number of top routes to return |
-
-**Response Structure:**
+**Returns:**
 ```json
 [
   {
-    "pickup_zone": "Times Square/Theatre District",
-    "dropoff_zone": "Penn Station/Madison Sq West",
+    "pickup_zone": "Times Square",
+    "dropoff_zone": "Penn Station",
     "trip_count": 456,
     "avg_fare": 8.50,
-    "avg_distance": 1.2,
-    "total_revenue": 3876.00
-  },
-  {
-    "pickup_zone": "Upper East Side South",
-    "dropoff_zone": "Upper East Side North",
-    "trip_count": 387,
-    "avg_fare": 7.20,
-    "avg_distance": 0.9,
-    "total_revenue": 2786.40
+    "avg_distance": 1.2
   }
 ]
 ```
 
-**Algorithm:** Uses custom QuickSort implementation (O(n log n) complexity)
-
-**Examples:**
-
-1. Get top 10 routes:
-```bash
-curl http://127.0.0.1:5000/api/routes/top
-```
-
-2. Get top 20 routes:
-```bash
-curl "http://127.0.0.1:5000/api/routes/top?limit=20"
-```
-
-**Use Cases:**
-- Identify popular corridors
-- Route optimization
-- Demand forecasting
-
 ---
 
-### Custom Insights
+### Custom Insights Endpoints
 
 #### `GET /api/insights/custom`
-
-Get advanced insights using custom algorithms (outlier detection, aggregation).
-
-**Parameters:** None
-
-**Response Structure:**
+**Description:** Custom algorithm analysis (outliers, aggregation)  
+**Returns:**
 ```json
 {
   "outliers_detected": 127,
@@ -812,488 +632,418 @@ Get advanced insights using custom algorithms (outlier detection, aggregation).
     {
       "hour": 0,
       "total_trips": 245,
-      "total_revenue": 2876.45,
-      "total_distance": 514.5,
-      "avg_fare": 11.74,
-      "avg_distance": 2.10
+      "total_revenue": 2876.45
     }
   ],
   "outlier_samples": [
     {
       "id": 1234,
       "fare_amount": 125.50,
-      "trip_distance": 18.3,
-      "duration_mins": 65.2,
-      "reason": "fare_outlier",
-      "outlier_type": "high"
-    },
-    {
-      "id": 2456,
-      "fare_amount": 2.50,
-      "trip_distance": 0.1,
-      "duration_mins": 1.2,
-      "reason": "fare_outlier",
-      "outlier_type": "low"
+      "reason": "fare_outlier"
     }
   ]
 }
 ```
 
-**Algorithms Used:**
-1. **IQR Outlier Detection** - Identifies anomalous fares using Interquartile Range method
-2. **Manual Aggregation** - Hourly aggregation without pandas groupby
-3. **QuickSort** - Custom sorting implementation
+---
 
-**Outlier Detection Method:**
-- Calculate Q1 (25th percentile) and Q3 (75th percentile)
-- Compute IQR = Q3 - Q1
-- Flag values outside [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
+## File Descriptions
 
-**Use Cases:**
-- Data quality analysis
-- Fraud detection
-- Anomaly investigation
+### Backend Files
 
-**Example:**
-```bash
-curl http://127.0.0.1:5000/api/insights/custom
-```
+#### `backend/app.py` (352 lines)
+**Purpose:** Flask API server with RESTful endpoints  
+**Key Components:**
+- Flask application initialization with CORS support
+- 13 API endpoints organized by category (stats, trips, analysis, routes, insights)
+- Session management configuration
+- Error handlers (404, 500)
+- Database handler integration
+- Custom algorithm implementations (CustomSort, OutlierDetector, TripAggregator)
+
+**API Endpoints (13 total):**
+1. `/api/status` - Health check
+2. `/api/stats/summary` - Overall statistics
+3. `/api/trips/list` - Filtered trip listing
+4. `/api/analysis/hourly-patterns` - Hour-based analysis
+5. `/api/analysis/borough` - Borough comparison
+6. `/api/analysis/fare-distribution` - Fare brackets
+7. `/api/analysis/distance` - Distance insights
+8. `/api/analysis/payment` - Payment types
+9. `/api/analysis/speed` - Speed by hour
+10. `/api/analysis/tips` - Tipping patterns
+11. `/api/analysis/weekend-comparison` - Weekend vs weekday
+12. `/api/routes/top` - Popular routes (QuickSort)
+13. `/api/insights/custom` - Custom algorithms (IQR outliers)
 
 ---
 
-## Data Models
+#### `backend/database_operations.py`
+**Purpose:** MySQL database interface and query handler  
+**Key Components:**
+- `DatabaseHandler` class with connection management
+- 13 query methods matching API endpoints
+- Environment variable configuration (.env)
+- Error handling and connection pooling
+- Support for complex filtering and pagination
 
-### Trip Model
+**Key Methods:**
+- `get_summary_stats()`: Overall statistics
+- `get_trips()`: Filtered trip retrieval with 10 filter options
+- `get_hourly_patterns()`: Time-based analysis
+- `get_borough_analysis()`: Location-based insights
+- `get_fare_distribution()`: Fare bracket analysis
+- `get_distance_analysis()`: Distance patterns
+- `get_top_routes()`: Popular route identification
+- `get_payment_analysis()`: Payment method breakdown
+- `get_speed_analysis()`: Speed by hour
+- `get_tip_analysis()`: Tipping patterns
+- `get_weekend_comparison()`: Weekday vs weekend stats
+- `get_trips_for_analysis()`: Raw data for custom algorithms
 
-Complete structure of a trip record returned by the API:
+---
+ (539 lines)
+**Purpose:** ETL pipeline for data loading and preprocessing  
+**Key Components:**
+- **Step 1: Data Loading** - Reads CSV (15k trips), zone lookup (265 zones), taxi_zones.json (265 zones), shapefiles
+- **Step 2: Data Integration** - Merges trips with zone/borough info
+- **Step 3: Data Cleaning** - Removes invalid dates, outliers using IQR method
+- **Step 4: Feature Engineering** - Calculates speed, duration, tip %, categories
+- **Step 5: Database Loading** - Creates 4 tables, inserts zones → taxi_zones → trips in correct order
+- **Step 6: GeoJSON Export** - Creates geospatial file for mapping
 
-```json
-{
-  "id": 1,
-  "VendorID": 1,
-  "tpep_pickup_datetime": "2019-01-01 00:46:40",
-  "tpep_dropoff_datetime": "2019-01-01 00:53:20",
-  "passenger_count": 1,
-  "trip_distance": 1.5,
-  "RatecodeID": 1,
-  "store_and_fwd_flag": "N",
-  "PULocationID": 142,
-  "DOLocationID": 236,
-  "payment_type": 1,
-  "fare_amount": 7.0,
-  "extra": 0.5,
-  "mta_tax": 0.5,
-  "tip_amount": 1.65,
-  "tolls_amount": 0.0,
-  "improvement_surcharge": 0.3,
-  "total_amount": 11.15,
-  "congestion_surcharge": 0.0,
-  "pu_borough": "Manhattan",
-  "pu_zone": "East Harlem North",
-  "service_zone": "Boro Zone",
-  "do_borough": "Manhattan",
-  "do_zone": "Upper East Side North",
-  "do_service_zone": "Yellow Zone",
-  "duration_mins": 6.67,
-  "avg_speed_mph": 13.5,
-  "tip_percentage": 23.57,
-  "pickup_hour": 0,
-  "fare_range": "$5-$15",
-  "distance_category": "short"
-}
-```
+**Database Operations:**
+- Creates `zones`, `taxi_zones`, `trips`, `excluded_data_log` tables with all indexes and foreign keys
+- Inserts 265 zone records
+- Inserts 265 taxi_zones geographic records
+- Batch inserts ~10,000-14,000 trip records (1000 rows/batch)
+- Validates foreign key constraints
 
-### Field Descriptions
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | int | Unique trip identifier |
-| `VendorID` | int | Taxi company (1=Creative Mobile, 2=VeriFone) |
-| `tpep_pickup_datetime` | datetime | Pickup timestamp |
-| `tpep_dropoff_datetime` | datetime | Dropoff timestamp |
-| `passenger_count` | int | Number of passengers |
-| `trip_distance` | float | Distance in miles |
-| `RatecodeID` | int | Rate code (1=Standard, 2=JFK, 3=Newark, etc.) |
-| `store_and_fwd_flag` | string | Y/N (trip record held in memory) |
-| `PULocationID` | int | Pickup location zone ID |
-| `DOLocationID` | int | Dropoff location zone ID |
-| `payment_type` | int | Payment method (1=Card, 2=Cash) |
-| `fare_amount` | float | Metered fare ($) |
-| `extra` | float | Extra charges ($) |
-| `mta_tax` | float | MTA tax ($0.50) |
-| `tip_amount` | float | Tip amount ($) |
-| `tolls_amount` | float | Tolls paid ($) |
-| `improvement_surcharge` | float | Improvement surcharge ($0.30) |
-| `total_amount` | float | Total charge ($) |
-| `congestion_surcharge` | float | Congestion fee ($) |
-| `pu_borough` | string | Pickup borough name |
-| `pu_zone` | string | Pickup zone name |
-| `service_zone` | string | Service zone type |
-| `do_borough` | string | Dropoff borough name |
-| `do_zone` | string | Dropoff zone name |
-| `do_service_zone` | string | Dropoff service zone |
-| `duration_mins` | float | **Calculated:** Trip duration |
-| `avg_speed_mph` | float | **Calculated:** Average speed |
-| `tip_percentage` | float | **Calculated:** Tip as % of fare |
-| `pickup_hour` | int | **Calculated:** Hour (0-23) |
-| `fare_range` | string | **Calculated:** Fare bracket |
-| `distance_category` | string | **Calculated:** Distance category |
+**Processing Details:**
+- Sample mode: 15,000 trips (configurable via `nrows` parameter)
+- Data quality: ~10,000-14,000 clean records after filtering
+- Rejection rate: ~300-5,000 invalid records removed
+- Batch size: 1000 records per MySQL insert
+- Validation: Date checks, numeric validation, IQR
+- Validation: Date checks, numeric validation, outlier removal
 
 ---
 
-## Filtering & Pagination
+#### `backend/custom_algorithms.py`
+**Purpose:** Custom algorithm implementations demonstrating CS fundamentals  
+**Key Components:**
 
-### Pagination
-
-Use `limit` and `offset` for pagination:
-
-```bash
-# Page 1 (trips 0-49)
-curl "http://127.0.0.1:5000/api/trips/list?limit=50&offset=0"
-
-# Page 2 (trips 50-99)
-curl "http://127.0.0.1:5000/api/trips/list?limit=50&offset=50"
-
-# Page 3 (trips 100-149)
-curl "http://127.0.0.1:5000/api/trips/list?limit=100&offset=100"
-```
-
-### Multiple Filters
-
-Combine multiple filters in a single query:
-
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?borough=Manhattan&min_fare=10&max_fare=20&hour=8&limit=100"
-```
-
-### Filter Combinations
-
-**Example 1:** Manhattan trips during morning rush hour
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?borough=Manhattan&hour=8&limit=50"
-```
-
-**Example 2:** High-value trips (fare > $50)
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?min_fare=50&limit=25"
-```
-
-**Example 3:** Long-distance trips (> 10 miles)
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?min_distance=10&limit=30"
-```
-
-**Example 4:** Weekend evening trips
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?is_weekend=true&hour=20&limit=100"
-```
-
-**Example 5:** Date range filter
-```bash
-curl "http://127.0.0.1:5000/api/trips/list?start_date=2019-01-01&end_date=2019-01-07&limit=200"
-```
+1. **CustomSort Class**
+   - QuickSort implementation (O(n log n) average)
+   - Partition-based divide and conquer
+   - Used for ranking top routes
+   
+2. **OutlierDetector Class**
+   - IQR (Interquartile Range) method
+   - Bubble sort for quartile calculation (O(n²))
+   - Detects fare, distance, and duration anomalies
+   
+3. **TripAggregator Class**
+   - Manual hourly aggregation without pandas groupby
+   - Linear time complexity (O(n))
+   - Accumulates totals and calculates averages
+   
+4. **SpeedAnalyzer Class**
+   - Identifies congestion hours
+   - Analyzes speed patterns by time of day
+   - Linear scan algorithm (O(n))
 
 ---
 
-## Examples
+### Data Files
 
-### Complete Use Case Examples
+#### `data/yellow_tripdata_2019-01.csv`
+**Description:** NYC Yellow Taxi trip data (January 2019)  
+**Records:** 15,000 (sample) from full dataset  
+**Columns:** 18 fields including pickup/dropoff times, locations, fares, tips  
+**Source:** [NYC Taxi & Limousine Commission](https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
 
-#### 1. Analyze Rush Hour Traffic
+#### `data/taxi_zone_lookup.csv`
+**Description:** Zone ID to borough/neighborhood mapping  
+**Records:** 265 taxi zones across NYC  
+**Columns:** LocationID, Borough, Zone, service_zone
 
-```bash
-# Get hourly patterns
-curl http://127.0.0.1:5000/api/analysis/hourly-patterns > hourly_data.json
+#### `data/taxi_zones.shp` (+ .shx, .dbf, .prj, etc.)
+**Description:** Shapefile for geospatial visualization  
+**Format:** ESRI Shapefile  
+**Usage:** Borough boundary mapping, zone visualization
 
-# Get speed analysis
-curl http://127.0.0.1:5000/api/analysis/speed > speed_data.json
+---
 
-# Get trips during peak hours (8 AM)
-curl "http://127.0.0.1:5000/api/trips/list?hour=8&limit=100" > morning_rush.json
+### Database Files
+
+#### `Database/db_design.sql`
+**Description:** MySQL schema definition  
+**Tables:**
+1. **trips** (30 columns)
+   - Core fields: datetime, location IDs, fares, passenger count
+   - Enriched fields: borough names, speed, duration, categories
+   - Primary key: `id` (auto-increment)
+   
+2. **zones** (4 columns)
+   - LocationID, Borough, Zone, service_zone
+   - Primary key: `LocationID`
+
+---
+
+### Configuration Files
+
+#### `.env` (Not in repository)
+**Description:** Database credentials (create from .env.example)  
+**Contents:**
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=urban_mobility
+DB_PORT=3306
 ```
 
-#### 2. Borough Comparison Study
+#### `.env.example`
+**Description:** Template for environment variables  
+**Purpose:** Shows required configuration without exposing secrets
 
-```bash
-# Get borough statistics
-curl http://127.0.0.1:5000/api/analysis/borough > borough_stats.json
+#### `requirements.txt`
+**Description:** Python package dependencies  
+**Packages:** 23 packages including Flask, pandas, geopandas, PyMySQL
 
-# Get Manhattan trips
-curl "http://127.0.0.1:5000/api/trips/list?borough=Manhattan&limit=100" > manhattan.json
+#### `.gitignore`
+**Description:** Files excluded from version control  
+**Includes:**
+- `.env` (credentials)
+- `__pycache__/` (Python cache)
+- `*.pyc` (compiled Python)
+- `processed/` (output files)
+- `.vscode/` (editor config)
+- `taxi_zones.geojson` (generated file)
 
-# Get Brooklyn trips
-curl "http://127.0.0.1:5000/api/trips/list?borough=Brooklyn&limit=100" > brooklyn.json
-```
+---
 
-#### 3. Revenue Analysis
+## Custom Algorithms
 
-```bash
-# Get summary statistics
-curl http://127.0.0.1:5000/api/stats/summary > summary.json
+This project implements several algorithms from scratch without using built-in library functions:
 
-# Get fare distribution
-curl http://127.0.0.1:5000/api/analysis/fare-distribution > fare_dist.json
+### 1. QuickSort Algorithm (`CustomSort`)
+**File:** `custom_algorithms.py`  
+**Purpose:** Sort routes by trip count for ranking  
+**Complexity:** O(n log n) average, O(n²) worst case  
+**Implementation:**
+- Pivot selection
+- Partition-based divide and conquer
+- Recursive sorting
 
-# Get high-value trips
-curl "http://127.0.0.1:5000/api/trips/list?min_fare=50&limit=50" > high_value.json
-```
-
-#### 4. Route Optimization
-
-```bash
-# Get top 20 popular routes
-curl "http://127.0.0.1:5000/api/routes/top?limit=20" > popular_routes.json
-
-# Get distance analysis
-curl http://127.0.0.1:5000/api/analysis/distance > distance_patterns.json
-```
-
-#### 5. Tipping Behavior Study
-
-```bash
-# Get tip analysis
-curl http://127.0.0.1:5000/api/analysis/tips > tipping_data.json
-
-# Get payment analysis
-curl http://127.0.0.1:5000/api/analysis/payment > payment_methods.json
-
-# Get credit card trips (payment_type=1)
-curl "http://127.0.0.1:5000/api/trips/list?limit=100" > trips_sample.json
-```
-
-#### 6. Weekend vs Weekday Analysis
-
-```bash
-# Get weekend comparison
-curl http://127.0.0.1:5000/api/analysis/weekend-comparison > weekend_vs_weekday.json
-
-# Get weekend trips
-curl "http://127.0.0.1:5000/api/trips/list?is_weekend=true&limit=100" > weekend_trips.json
-
-# Get weekday trips
-curl "http://127.0.0.1:5000/api/trips/list?is_weekend=false&limit=100" > weekday_trips.json
-```
-
-### Python Example
-
+**Usage:**
 ```python
-import requests
-
-BASE_URL = "http://127.0.0.1:5000"
-
-# Get summary statistics
-response = requests.get(f"{BASE_URL}/api/stats/summary")
-summary = response.json()
-print(f"Total trips: {summary['total_trips']}")
-print(f"Average fare: ${summary['avg_fare']:.2f}")
-
-# Get Manhattan trips with filters
-params = {
-    'borough': 'Manhattan',
-    'min_fare': 10,
-    'max_fare': 20,
-    'limit': 50
-}
-response = requests.get(f"{BASE_URL}/api/trips/list", params=params)
-trips = response.json()['trips']
-print(f"Found {len(trips)} trips")
-
-# Get hourly patterns
-response = requests.get(f"{BASE_URL}/api/analysis/hourly-patterns")
-hourly_data = response.json()
-for hour_data in hourly_data:
-    print(f"Hour {hour_data['hour']}: {hour_data['trip_count']} trips")
+sorter = CustomSort()
+sorted_routes = sorter.sort_by_trip_count(routes)
 ```
 
-### JavaScript Example
+### 2. IQR Outlier Detection (`OutlierDetector`)
+**File:** `custom_algorithms.py`  
+**Purpose:** Identify anomalous fares, distances, durations  
+**Method:** Interquartile Range (IQR)  
+**Complexity:** O(n²) due to bubble sort  
+**Process:**
+1. Sort data using bubble sort
+2. Calculate Q1 (25th percentile) and Q3 (75th percentile)
+3. Compute IQR = Q3 - Q1
+4. Flag values outside [Q1 - 1.5*IQR, Q3 + 1.5*IQR]
 
-```javascript
-const BASE_URL = 'http://127.0.0.1:5000';
+**Usage:**
+```python
+detector = OutlierDetector()
+outliers = detector.detect_fare_outliers(trips)
+```
 
-// Get summary statistics
-fetch(`${BASE_URL}/api/stats/summary`)
-  .then(response => response.json())
-  .then(data => {
-    console.log('Total trips:', data.total_trips);
-    console.log('Average fare:', data.avg_fare);
-  });
+### 3. Manual Aggregation (`TripAggregator`)
+**File:** `custom_algorithms.py`  
+**Purpose:** Aggregate trips by hour without pandas groupby  
+**Complexity:** O(n) linear  
+**Process:**
+1. Initialize accumulator dictionary
+2. Iterate through trips once
+3. Sum totals and count trips per hour
+4. Calculate averages
 
-// Get trips with filters
-const params = new URLSearchParams({
-  borough: 'Manhattan',
-  min_fare: 10,
-  max_fare: 20,
-  limit: 50
-});
+**Usage:**
+```python
+aggregator = TripAggregator()
+hourly_data = aggregator.aggregate_by_hour(trips)
+```
 
-fetch(`${BASE_URL}/api/trips/list?${params}`)
-  .then(response => response.json())
-  .then(data => {
-    console.log('Trips found:', data.trips.length);
-    data.trips.forEach(trip => {
-      console.log(`Trip ${trip.id}: $${trip.fare_amount}`);
-    });
-  });
+### 4. Congestion Hour Analyzer (`SpeedAnalyzer`)
+**File:** `custom_algorithms.py`  
+**Purpose:** Find hours with slowest average speeds  
+**Complexity:** O(n) linear  
+**Process:**
+1. Group speeds by hour
+2. Calculate average speed per hour
+3. Identify hours below threshold
 
-// Get top routes
-fetch(`${BASE_URL}/api/routes/top?limit=10`)
-  .then(response => response.json())
-  .then(routes => {
-    routes.forEach((route, index) => {
-      console.log(`${index + 1}. ${route.pickup_zone} → ${route.dropoff_zone}`);
-      console.log(`   ${route.trip_count} trips, $${route.avg_fare} avg fare`);
-    });
-  });
+**Usage:**
+```python
+analyzer = SpeedAnalyzer()
+congestion_hours = analyzer.find_congestion_hours(trips)
 ```
 
 ---
 
-## Database Schema Reference
+## Database Schema
 
-### trips Table (30 columns, 6 indexes, 2 FKs)
+The database consists of 4 tables with **11 indexes** and **3 foreign key relationships** ensuring data integrity and query performance.
 
-```sql
-CREATE TABLE trips (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    VendorID INT,
-    tpep_pickup_datetime DATETIME,
-    tpep_dropoff_datetime DATETIME,
-    passenger_count INT,
-    trip_distance FLOAT,
-    RatecodeID INT,
-    store_and_fwd_flag VARCHAR(10),
-    PULocationID INT,
-    DOLocationID INT,
-    payment_type INT,
-    fare_amount FLOAT,
-    extra FLOAT,
-    mta_tax FLOAT,
-    tip_amount FLOAT,
-    tolls_amount FLOAT,
-    improvement_surcharge FLOAT,
-    total_amount FLOAT,
-    congestion_surcharge FLOAT,
-    pu_borough VARCHAR(50),
-    pu_zone VARCHAR(100),
-    service_zone VARCHAR(50),
-    do_borough VARCHAR(50),
-    do_zone VARCHAR(100),
-    do_service_zone VARCHAR(50),
-    duration_mins FLOAT,
-    avg_speed_mph FLOAT,
-    tip_percentage FLOAT,
-    pickup_hour INT,
-    fare_range VARCHAR(20),
-    distance_category VARCHAR(20),
-    
-    INDEX idx_pickup_location (PULocationID),
-    INDEX idx_dropoff_location (DOLocationID),
-    INDEX idx_pickup_datetime (tpep_pickup_datetime),
-    INDEX idx_pickup_hour (pickup_hour),
-    INDEX idx_pu_borough (pu_borough),
-    INDEX idx_do_borough (do_borough),
-    
-    FOREIGN KEY (PULocationID) REFERENCES zones(LocationID) ON DELETE SET NULL,
-    FOREIGN KEY (DOLocationID) REFERENCES zones(LocationID) ON DELETE SET NULL
-);
-```
+### Overview
 
-### excluded_data_log Table (7 columns, 2 indexes)
+| Table | Columns | Indexes | FKs | Purpose |
+|-------|---------|---------|-----|---------|
+| `zones` | 4 | 2 | 0 | NYC taxi zone lookup (265 zones) |
+| `taxi_zones` | 6 | 3 | 1 | Geographic zone data with shapes |
+| `trips` | 30 | 6 | 2 | Main trip records (~10k-15k records) |
+| `excluded_data_log` | 7 | 2 | 0 | ETL data quality tracking |
 
-```sql
-CREATE TABLE excluded_data_log (
-    log_id INT AUTO_INCREMENT PRIMARY KEY,
-    issue_type VARCHAR(50) NOT NULL,
-    trip_identifier VARCHAR(255),
-    field_name VARCHAR(50),
-    issue_description TEXT,
-    action_taken VARCHAR(100),
-    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    
-    INDEX idx_issue_type (issue_type),
-    INDEX idx_logged_at (logged_at)
-);
-```
+---
 
-**Purpose:** Tracks data quality issues and rejected records during ETL processing.
+### `zones` Table (4 columns, 2 indexes)
+
+**Purpose:** Reference table mapping zone IDs to boroughs and neighborhoods (265 zones)
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `LocationID` | INT | Primary key, zone identifier (1-265) |
+| `Borough` | VARCHAR(50) | NYC borough name (Manhattan, Brooklyn, etc.) |
+| `Zone` | VARCHAR(100) | Neighborhood/zone name |
+| `service_zone` | VARCHAR(50) | Service zone classification |
+
+**Indexes:**
+- `idx_borough` on `Borough`
+- `idx_zone` on `Zone`
+
+---
+
+### `taxi_zones` Table (6 columns, 3 indexes, 1 FK)
+
+**Purpose:** Geographic zone information with shape measurements from GIS data
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `objectid` | INT | Primary key, GIS object identifier |
+| `shape_leng` | DECIMAL(15,10) | Zone perimeter length |
+| `shape_area` | DECIMAL(15,10) | Zone area |
+| `zone` | VARCHAR(100) | Zone name |
+| `locationid` | INT | Foreign key to `zones.LocationID` |
+| `borough` | VARCHAR(50) | Borough name |
+
+**Indexes:**
+- `idx_locationid` on `locationid`
+- `idx_borough` on `borough`
+- `idx_zone` on `zone`
+
+**Foreign Keys:**
+- `locationid` → `zones(LocationID)` ON DELETE CASCADE
+
+---
+
+### `trips` Table (30 columns, 6 indexes, 2 FKs)
+
+**Purpose:** Main trip records with original TLC data + calculated features
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT | Primary key (auto-increment) |
+| `VendorID` | INT | Cab company identifier (1=Creative, 2=VeriFone) |
+| `tpep_pickup_datetime` | DATETIME | Pickup timestamp |
+| `tpep_dropoff_datetime` | DATETIME | Dropoff timestamp |
+| `passenger_count` | INT | Number of passengers |
+| `trip_distance` | FLOAT | Distance in miles |
+| `RatecodeID` | INT | Rate code (1=Standard, 2=JFK, etc.) |
+| `store_and_fwd_flag` | VARCHAR(10) | Trip record stored locally (Y/N) |
+| `PULocationID` | INT | Pickup location zone ID (FK to zones) |
+| `DOLocationID` | INT | Dropoff location zone ID (FK to zones) |
+| `payment_type` | INT | Payment method (1=Card, 2=Cash) |
+| `fare_amount` | FLOAT | Metered fare ($) |
+| `extra` | FLOAT | Extra charges ($) |
+| `mta_tax` | FLOAT | MTA tax ($0.50) |
+| `tip_amount` | FLOAT | Tip amount ($) |
+| `tolls_amount` | FLOAT | Tolls ($) |
+| `improvement_surcharge` | FLOAT | Surcharge fee ($0.30) |
+| `total_amount` | FLOAT | Total charge ($) |
+| `congestion_surcharge` | FLOAT | Congestion fee ($) |
+| `pu_borough` | VARCHAR(50) | Pickup borough name |
+| `pu_zone` | VARCHAR(100) | Pickup zone name |
+| `service_zone` | VARCHAR(50) | Service zone type |
+| `do_borough` | VARCHAR(50) | Dropoff borough name |
+| `do_zone` | VARCHAR(100) | Dropoff zone name |
+| `do_service_zone` | VARCHAR(50) | Dropoff service zone |
+| `duration_mins` | FLOAT | **Calculated:** Trip duration |
+| `avg_speed_mph` | FLOAT | **Calculated:** Average speed |
+| `tip_percentage` | FLOAT | **Calculated:** Tip as % of fare |
+| `pickup_hour` | INT | **Calculated:** Hour of pickup (0-23) |
+| `fare_range` | VARCHAR(20) | **Calculated:** Fare category |
+| `distance_category` | VARCHAR(20) | **Calculated:** Distance category |
+
+**Indexes:**
+- `idx_pickup_location` on `PULocationID`
+- `idx_dropoff_location` on `DOLocationID`
+- `idx_pickup_datetime` on `tpep_pickup_datetime`
+- `idx_pickup_hour` on `pickup_hour`
+- `idx_pu_borough` on `pu_borough`
+- `idx_do_borough` on `do_borough`
+
+**Foreign Keys:**
+- `PULocationID` → `zones(LocationID)` ON DELETE SET NULL
+- `DOLocationID` → `zones(LocationID)` ON DELETE SET NULL
+
+---
+
+### `excluded_data_log` Table (7 columns, 2 indexes)
+
+**Purpose:** Audit trail for data quality issues and rejected records during ETL
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `log_id` | INT | Primary key (auto-increment) |
+| `issue_type` | VARCHAR(50) | Type of issue (date_invalid, outlier, etc.) |
+| `trip_identifier` | VARCHAR(255) | Reference to problematic trip |
+| `field_name` | VARCHAR(50) | Field with issue |
+| `issue_description` | TEXT | Detailed description |
+| `action_taken` | VARCHAR(100) | Action performed (excluded, flagged) |
+| `logged_at` | TIMESTAMP | Timestamp of logging |
+
+**Indexes:**
+- `idx_issue_type` on `issue_type`
+- `idx_logged_at` on `logged_at`
 
 **Use Cases:**
 - Data quality monitoring
-- ETL audit trail
-- Debugging data issues
-- Compliance and lineage tracking
-
-### zones Table (4 columns, 2 indexes)
-
-```sql
-CREATE TABLE zones (
-    LocationID INT PRIMARY KEY,
-    Borough VARCHAR(50),
-    Zone VARCHAR(100),
-    service_zone VARCHAR(50),
-    
-    INDEX idx_borough (Borough),
-    INDEX idx_zone (Zone)
-);
-```
-
-### taxi_zones Table (6 columns, 3 indexes, 1 FK)
-
-```sql
-CREATE TABLE taxi_zones (
-    objectid INT PRIMARY KEY,
-    shape_leng DECIMAL(15, 10),
-    shape_area DECIMAL(15, 10),
-    zone VARCHAR(100),
-    locationid INT,
-    borough VARCHAR(50),
-    
-    INDEX idx_locationid (locationid),
-    INDEX idx_borough (borough),
-    INDEX idx_zone (zone),
-    
-    FOREIGN KEY (locationid) REFERENCES zones(LocationID) ON DELETE CASCADE
-);
-```
+- ETL debugging
+- Compliance auditing
+- Data lineage tracking
 
 ---
 
-## Performance Tips
+## Data Sources
 
-1. **Use Pagination:** Always use `limit` and `offset` for large datasets
-2. **Filter Early:** Apply filters to reduce data transfer
-3. **Index Usage:** Database has indexes on borough, hour, datetime columns
-4. **Caching:** Consider caching frequently accessed endpoints (summary, hourly patterns)
-5. **Batch Requests:** Combine multiple filters in one request instead of multiple calls
+### NYC Taxi & Limousine Commission (TLC)
+**Dataset:** Yellow Taxi Trip Records (January 2019)  
+**URL:** [https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page](https://www1.nyc.gov/site/tlc/about/tlc-trip-record-data.page)  
+**License:** Public domain (NYC Open Data)
 
----
+**Dataset Details:**
+- **Records:** 7.7 million trips (full month), 15,000 sample used
+- **Date Range:** January 1-31, 2019
+- **File Format:** CSV
+- **Size:** ~700 MB (full), ~2 MB (sample)
 
-## Rate Limiting
-
-**Current Status:** No rate limiting implemented
-
-**Recommendation:** For production, implement rate limiting to prevent abuse.
-
----
-
-## CORS Configuration
-
-**Allowed Origins:**
-- `http://127.0.0.1:5500`
-- `http://localhost:5500`
-
-To add more origins, edit the CORS configuration in `app.py`:
-
-```python
-CORS(
-    app,
-    supports_credentials=True,
-    origins=[
-        'http://127.0.0.1:5500',
-        'http://localhost:5500',
-     ]
-)
-```
+### NYC Taxi Zones Shapefile
+**Source:** NYC TLC  
+**Format:** ESRI Shapefile  
+**Zones:** 265 taxi zones across 5 boroughs  
+**Usage:** Geospatial visualization and borough mapping
 
 ---
 
@@ -1301,16 +1051,127 @@ CORS(
 
 ### Common Issues
 
-**Problem:** API returns empty results
-- **Solution:** Check if database has data. Run ETL pipeline: `python main.py`
+#### 1. MySQL Connection Error
+**Error:** `Can't connect to MySQL server`
 
-**Problem:** CORS error in browser
-- **Solution:** Add your frontend URL to CORS origins in `app.py`
+**Solution:**
+- Verify MySQL service is running
+- Check credentials in `.env` file
+- Ensure database `urban_mobility` exists
+- Test connection:
+  ```bash
+  mysql -u root -p -e "SHOW DATABASES;"
+  ```
 
-**Problem:** 500 Internal Server Error
-- **Solution:** Check MySQL connection in `.env` file and verify database exists
+#### 2. Port Already in Use
+**Error:** `Address already in use: 5000`
 
-**Problem:** Slow response times
-- **Solution:** Add database indexes, reduce `limit` parameter, or use more specific filters
+**Solution:**
+- Kill process using port 5000:
+  ```bash
+  # Windows
+  netstat -ano | findstr :5000
+  taskkill /PID <PID> /F
+
+  # macOS/Linux
+  lsof -ti:5000 | xargs kill -9
+  ```
+- Or change port in `app.py`:
+  ```python
+  app.run(debug=True, host='127.0.0.1', port=5001)
+  ```
+
+#### 3. Module Not Found Error
+**Error:** `ModuleNotFoundError: No module named 'flask'`
+
+**Solution:**
+- Reinstall dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+- Use virtual environment:
+  ```bash
+  python -m venv venv
+  source venv/bin/activate  # macOS/Linux
+  venv\Scripts\activate     # Windows
+  pip install -r requirements.txt
+  ```
+
+#### 4. Empty Database After ETL
+**Error:** No records in database after running `main.py`
+
+**Solution:**
+- Check if CSV files exist in `data/` folder
+- Verify CSV file has data:
+  ```bash
+  head data/yellow_tripdata_2019-01.csv
+  ```
+- Check ETL output for errors
+- Ensure sample size is sufficient in `main.py`:
+  ```python
+  SAMPLE_SIZE = 15000
+  ```
+
+#### 5. CORS Error in Frontend
+**Error:** `Access-Control-Allow-Origin` error
+
+**Solution:**
+- Verify CORS configuration in `app.py`:
+  ```python
+  CORS(app, supports_credentials=True, origins=['http://127.0.0.1:5500'])
+  ```
+- Add your frontend URL to origins list
+- Clear browser cache
+
+#### 6. Slow API Response
+**Issue:** API endpoints taking too long
+
+**Solution:**
+- Add database indexes:
+  ```sql
+  CREATE INDEX idx_borough ON trips(pu_borough);
+  CREATE INDEX idx_hour ON trips(pickup_hour);
+  CREATE INDEX idx_datetime ON trips(tpep_pickup_datetime);
+  ```
+- Reduce `limit` in API calls
+- Use pagination for large datasets
 
 ---
+
+## Development Workflow
+
+### Making Changes
+
+1. **Add New API Endpoint:**
+   - Add route in `backend/app.py`
+   - Add corresponding method in `backend/database_operations.py`
+   - Test with curl or Postman
+
+2. **Modify ETL Pipeline:**
+   - Edit `backend/main.py`
+   - Run pipeline: `python main.py`
+   - Verify data in MySQL
+
+3. **Add Custom Algorithm:**
+   - Implement in `backend/custom_algorithms.py`
+   - Import in `app.py`
+   - Call from endpoint
+
+### Testing
+
+```bash
+# Test API status
+curl http://127.0.0.1:5000/api/status
+
+# Test summary stats
+curl http://127.0.0.1:5000/api/stats/summary
+
+# Test with filters
+curl "http://127.0.0.1:5000/api/trips/list?borough=Manhattan&limit=5"
+
+# Test custom algorithms
+curl http://127.0.0.1:5000/api/insights/custom
+```
+
+---
+# urban-mobility-data-explorer
