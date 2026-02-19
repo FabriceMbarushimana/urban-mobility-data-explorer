@@ -77,3 +77,99 @@ def get_summary():
 
 
 # API ENDPOINTS - TRIPS DATA
+
+@app.route('/api/trips/list', methods=['GET'])
+def get_trips():
+    """
+    Get trips with optional filtering and pagination
+    
+    Query Parameters:
+        limit (int): Number of records to return (default: 100)
+        offset (int): Number of records to skip (default: 0)
+        borough (str): Filter by NYC borough
+        min_fare, max_fare (float): Fare amount range
+        min_distance, max_distance (float): Trip distance range
+        start_date, end_date (str): Date range filter
+        hour (int): Filter by hour of day (0-23)
+        is_weekend (bool): Filter weekend/weekday trips
+    
+    Returns:
+        JSON: List of trip records matching filters
+    """
+    try:
+        # Parse query parameters with default values
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        borough = request.args.get('borough', None)
+        min_fare = request.args.get('min_fare', None)
+        max_fare = request.args.get('max_fare', None)
+        min_distance = request.args.get('min_distance', None)
+        max_distance = request.args.get('max_distance', None)
+        start_date = request.args.get('start_date', None)
+        end_date = request.args.get('end_date', None)
+        hour = request.args.get('hour', None)
+        is_weekend = request.args.get('is_weekend', None)
+
+        trips = db_handler.get_trips(
+            limit=limit,
+            offset=offset,
+            borough=borough,
+            min_fare=min_fare,
+            max_fare=max_fare,
+            min_distance=min_distance,
+            max_distance=max_distance,
+            start_date=start_date,
+            end_date=end_date,
+            hour=hour,
+            is_weekend=is_weekend
+        )
+
+        return jsonify({'trips': trips})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# API ENDPOINTS - ANALYSIS
+
+
+@app.route('/api/analysis/hourly-patterns', methods=['GET'])
+def get_hourly_patterns():
+    """
+    Get trip patterns aggregated by hour of day
+    
+    Returns:
+        JSON: Hourly statistics including trip counts, avg fare, avg distance
+    """
+    try:
+        patterns = db_handler.get_hourly_patterns()
+        return jsonify(patterns)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/borough', methods=['GET'])
+def get_borough_analysis():
+    """
+    Get analysis grouped by NYC borough (Manhattan, Brooklyn, Queens, Bronx, Staten Island)
+    
+    Returns:
+        JSON: Borough-level statistics for pickup and dropoff locations
+    """
+    try:
+        analysis = db_handler.get_borough_analysis()
+        return jsonify(analysis)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/analysis/fare-distribution', methods=['GET'])
+def get_fare_distribution():
+    """
+    Get fare amount distribution across different price ranges
+    
+    Returns:
+        JSON: Distribution of trips by fare brackets
+    """
+    try:
+        distribution = db_handler.get_fare_distribution()
+        return jsonify(distribution)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
