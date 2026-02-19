@@ -123,3 +123,71 @@ df = df.merge(lookup_do, on='DOLocationID', how='left')
 print("   [OK] Dropoff zones merged successfully")
 print(f"   [OK] Final merged dataset: {len(df):,} records with {len(df.columns)} columns")
 
+
+# STEP 3: DATA CLEANING & VALIDATION
+print("\nSTEP 3: Cleaning and validating data...")
+print("-" * 70)
+initial_count = len(df)
+print(f"   Starting with {initial_count:,} records")
+
+# Convert datetime columns to proper datetime objects
+print("   > Parsing datetime columns...")
+df['tpep_pickup_datetime'] = pd.to_datetime(df['tpep_pickup_datetime'], errors='coerce')
+df['tpep_dropoff_datetime'] = pd.to_datetime(df['tpep_dropoff_datetime'], errors='coerce')
+print("   [OK] Datetime columns parsed")
+
+# Convert numeric columns to proper data types (faster filtering and calculations)
+print("   > Converting numeric columns to appropriate types...")
+df['trip_distance'] = pd.to_numeric(df['trip_distance'], errors='coerce')
+df['fare_amount'] = pd.to_numeric(df['fare_amount'], errors='coerce')
+df['passenger_count'] = pd.to_numeric(df['passenger_count'], errors='coerce')
+print("   [OK] Numeric columns validated")
+
+# Validate dates: Accept any year up to 2019, reject 2020 onwards
+print(f"   > Validating date ranges (accepting year <= {CUTOFF_YEAR})...")
+
+# Use vectorized operations for performance (faster than row-by-row iteration)
+pickup_year = df['tpep_pickup_datetime'].dt.year
+dropoff_year = df['tpep_dropoff_datetime'].dt.year
+invalid_mask = (pickup_year > CUTOFF_YEAR) | (dropoff_year > CUTOFF_YEAR)
+invalid_dates = df[invalid_mask]
+
+if len(invalid_dates) > 0:
+    print(f"   [WARNING] Found {len(invalid_dates):,} records with invalid dates (year {CUTOFF_YEAR + 1}+)")
+    
+    # Save rejected records for audit trail
+    invalid_dates.to_csv(REJECTED_RECORDS, index=False)
+    
+    # Generate detailed rejection report
+    with open(REJECTION_LOG, 'w') as f:
+        f.write(f"Date Validation Report\n")
+        f.write(f"======================\n\n")
+        f.write(f"Valid Year Range: <= {CUTOFF_YEAR}\n")
+        f.write(f"Rejected Year Range: {CUTOFF_YEAR + 1}+\n")
+        f.write(f"Total Invalid Records: {len(invalid_dates):,}\n\n")
+        f.write(f"Sample Invalid Records (first 10):\n")
+        f.write(invalid_dates.head(10).to_string())
+    
+    print(f"   [OK] Rejected records exported to: {REJECTED_RECORDS}")
+    print(f"   [OK] Detailed rejection report saved to: {REJECTION_LOG}")
+else:
+    print(f"   [OK] All dates are valid (within acceptable range)")
+
+# Remove invalid date records from dataset
+df = df[~invalid_mask]
+
+print("   > Filtering outliers and invalid values...")
+# Filter outliers using vectorized operations (much faster than iterating)
+# Remove records with: zero distance, zero fare, zero passengers, or missing dates
+valid_mask = (
+    (df['trip_distance'] > 0) &           # Valid trip distance
+    (df['fare_amount'] > 0) &             # Positive fare amount
+    (df['passenger_count'] > 0) &         # At least one passenger
+    (df['tpep_pickup_datetime'].notna()) & # Valid pickup datetime
+    (df['tpep_dropoff_datetime'].notna())  # Valid dropoff datetime
+)
+df = df[valid_mask]
+
+records_removed = initial_count - len(df)
+print(f"   [OK] Removed {records_removed:,} invalid/outlier records")
+print(f"   [OK] Clean dataset: {len(df):,} valid records ({(len(df)/initial_count)*100:.1f}% retention)")
