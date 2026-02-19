@@ -8,6 +8,8 @@
     content="Explore urban mobility patterns through NYC yellow taxi trip data — peak hours, borough fares, distance trends, and more.">
   <title>NYC Urban Mobility Explorer</title>
   <link rel="stylesheet" href="styles.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -23,160 +25,211 @@
             This dashboard reveals the patterns — when people move, where they go, and what it costs.
           </p>
         </div>
-        <span class="badge badge-live">Live Data</span>
+        <span class="badge badge-live" id="api-status">Connecting...</span>
       </div>
     </header>
 
-    <section class="filter-section">
-      <div class="filter-bar">
-        <div class="filter-row">
+    <!-- Tab Navigation -->
+    <nav class="tab-navigation">
+      <button class="tab-button active" data-tab="overview">Overview</button>
+      <button class="tab-button" data-tab="analytics">Analytics</button>
+      <button class="tab-button" data-tab="reports">Reports</button>
+    </nav>
 
-          <div class="filter-group">
-            <label for="filter-borough">Borough</label>
-            <select id="filter-borough">
-              <option value="All">All Boroughs</option>
-              <option value="Manhattan">Manhattan</option>
-              <option value="Brooklyn">Brooklyn</option>
-              <option value="Queens">Queens</option>
-              <option value="Bronx">Bronx</option>
-              <option value="Staten Island">Staten Island</option>
-              <option value="EWR">EWR</option>
-            </select>
+    <!-- Tab Content: Overview -->
+    <div class="tab-content active" id="tab-overview">
+
+      <section class="summary-section">
+        <div class="summary-cards">
+          <div class="card">
+            <div class="card-label">Total Trips</div>
+            <div class="card-value accent" id="card-total-trips">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Average Fare</div>
+            <div class="card-value" id="card-avg-fare">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Average Distance</div>
+            <div class="card-value" id="card-avg-distance">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Average Duration</div>
+            <div class="card-value highlight" id="card-avg-duration">—</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="charts-section">
+        <h2>How the City Moves</h2>
+        <p class="section-subtitle">
+          Three views into the shape of urban travel — when trips happen, where fares are highest, and how far people go.
+        </p>
+
+        <div class="charts-grid">
+          <div class="chart-card full-width tall">
+            <h3>Trip Volume by Hour</h3>
+            <p class="chart-desc">
+              When does the city ride? Rush hours are highlighted in red.
+            </p>
+            <canvas id="chart-hourly"></canvas>
           </div>
 
-          <div class="filter-group">
-            <label>Hour Range</label>
-            <div class="filter-range">
-              <input type="number" id="filter-hour-min" min="0" max="23" value="0" placeholder="0">
-              <span>to</span>
-              <input type="number" id="filter-hour-max" min="0" max="23" value="23" placeholder="23">
+          <div class="chart-card">
+            <h3>Average Fare by Borough</h3>
+            <p class="chart-desc">
+              Which boroughs cost more to travel in?
+            </p>
+            <canvas id="chart-borough"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <h3>Trip Distance Distribution</h3>
+            <p class="chart-desc">
+              Most trips are short. Longer ones are rarer — and pricier.
+            </p>
+            <canvas id="chart-distance"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Tab Content: Analytics -->
+    <div class="tab-content" id="tab-analytics">
+
+      <section class="charts-section">
+        <h2>Advanced Analytics</h2>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3>Payment Method Distribution</h3>
+            <canvas id="chart-payment"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <h3>Average Speed by Hour</h3>
+            <canvas id="chart-speed"></canvas>
+          </div>
+
+          <div class="chart-card full-width">
+            <h3>Weekend vs Weekday Patterns</h3>
+            <canvas id="chart-weekend"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <h3>Tip Analysis</h3>
+            <canvas id="chart-tips"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <h3>Top Routes</h3>
+            <canvas id="chart-routes"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Tab Content: Reports -->
+    <div class="tab-content" id="tab-reports">
+
+      <section class="filter-section">
+        <div class="filter-bar">
+          <div class="filter-row">
+
+            <div class="filter-group">
+              <label for="filter-borough">Borough</label>
+              <select id="filter-borough">
+                <option value="All">All Boroughs</option>
+                <option value="Manhattan">Manhattan</option>
+                <option value="Brooklyn">Brooklyn</option>
+                <option value="Queens">Queens</option>
+                <option value="Bronx">Bronx</option>
+                <option value="Staten Island">Staten Island</option>
+                <option value="EWR">EWR</option>
+              </select>
             </div>
-          </div>
 
-          <div class="filter-group">
-            <label>Distance (mi)</label>
-            <div class="filter-range">
-              <input type="number" id="filter-dist-min" min="0" step="0.5" value="0" placeholder="0">
-              <span>to</span>
-              <input type="number" id="filter-dist-max" min="0" step="0.5" value="20" placeholder="20">
+            <div class="filter-group">
+              <label>Hour Range</label>
+              <div class="filter-range">
+                <input type="number" id="filter-hour-min" min="0" max="23" value="0" placeholder="0">
+                <span>to</span>
+                <input type="number" id="filter-hour-max" min="0" max="23" value="23" placeholder="23">
+              </div>
             </div>
-          </div>
 
-          <div class="filter-group">
-            <label>Fare ($)</label>
-            <div class="filter-range">
-              <input type="number" id="filter-fare-min" min="0" step="1" value="0" placeholder="0">
-              <span>to</span>
-              <input type="number" id="filter-fare-max" min="0" step="1" value="200" placeholder="200">
+            <div class="filter-group">
+              <label>Distance (mi)</label>
+              <div class="filter-range">
+                <input type="number" id="filter-dist-min" min="0" step="0.5" value="0" placeholder="0">
+                <span>to</span>
+                <input type="number" id="filter-dist-max" min="0" step="0.5" value="20" placeholder="20">
+              </div>
             </div>
+
+            <div class="filter-group">
+              <label>Fare ($)</label>
+              <div class="filter-range">
+                <input type="number" id="filter-fare-min" min="0" step="1" value="0" placeholder="0">
+                <span>to</span>
+                <input type="number" id="filter-fare-max" min="0" step="1" value="200" placeholder="200">
+              </div>
+            </div>
+
+            <div class="filter-divider"></div>
+
+            <div class="filter-group">
+              <label for="sort-field">Sort By</label>
+              <select id="sort-field">
+                <option value="none">Default</option>
+                <option value="fareAmount">Fare</option>
+                <option value="distance">Distance</option>
+                <option value="duration">Duration</option>
+                <option value="totalAmount">Total</option>
+                <option value="pickupHour">Pickup Hour</option>
+              </select>
+            </div>
+
+            <div class="filter-group">
+              <label for="sort-order">Order</label>
+              <select id="sort-order">
+                <option value="asc">Low → High</option>
+                <option value="desc">High → Low</option>
+              </select>
+            </div>
+
+            <span class="result-count" id="result-count">—</span>
           </div>
-
-          <div class="filter-divider"></div>
-
-          <div class="filter-group">
-            <label for="sort-field">Sort By</label>
-            <select id="sort-field">
-              <option value="none">Default</option>
-              <option value="fareAmount">Fare</option>
-              <option value="distance">Distance</option>
-              <option value="duration">Duration</option>
-              <option value="totalAmount">Total</option>
-              <option value="pickupHour">Pickup Hour</option>
-            </select>
-          </div>
-
-          <div class="filter-group">
-            <label for="sort-order">Order</label>
-            <select id="sort-order">
-              <option value="asc">Low → High</option>
-              <option value="desc">High → Low</option>
-            </select>
-          </div>
-
-          <span class="result-count" id="result-count">—</span>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="summary-section">
-      <div class="summary-cards">
-        <div class="card">
-          <div class="card-label">Total Trips</div>
-          <div class="card-value accent" id="card-total-trips">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Average Fare</div>
-          <div class="card-value" id="card-avg-fare">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Average Distance</div>
-          <div class="card-value" id="card-avg-distance">—</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Busiest Hour</div>
-          <div class="card-value highlight" id="card-busiest-hour">—</div>
-        </div>
-      </div>
-    </section>
+      <section class="table-section" id="trips-table-section">
+        <h2>Trip Records</h2>
 
-    <section class="charts-section">
-      <h2>How the City Moves</h2>
-      <p class="section-subtitle">
-        Three views into the shape of urban travel — when trips happen, where fares are highest, and how far people go.
-      </p>
-
-      <div class="charts-grid">
-        <div class="chart-card full-width tall">
-          <h3>Trip Volume by Hour</h3>
-          <p class="chart-desc">
-            When does the city ride? Rush hours are highlighted in red.
-          </p>
-          <canvas id="chart-hourly"></canvas>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Pickup Time</th>
+                <th>Pickup Zone</th>
+                <th>Dropoff Zone</th>
+                <th>Borough</th>
+                <th>Distance</th>
+                <th>Duration</th>
+                <th>Fare</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="trips-tbody">
+            </tbody>
+          </table>
         </div>
 
-        <div class="chart-card">
-          <h3>Average Fare by Borough</h3>
-          <p class="chart-desc">
-            Which boroughs cost more to travel in?
-          </p>
-          <canvas id="chart-borough"></canvas>
-        </div>
+        <div class="pagination" id="pagination"></div>
+      </section>
 
-        <div class="chart-card">
-          <h3>Trip Distance Distribution</h3>
-          <p class="chart-desc">
-            Most trips are short. Longer ones are rarer — and pricier.
-          </p>
-          <canvas id="chart-distance"></canvas>
-        </div>
-      </div>
-    </section>
-
-
-    <section class="table-section" id="trips-table-section">
-      <h2>Trip Records</h2>
-
-      <div class="table-wrapper">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Pickup Time</th>
-              <th>Pickup Zone</th>
-              <th>Dropoff Zone</th>
-              <th>Borough</th>
-              <th>Distance</th>
-              <th>Duration</th>
-              <th>Fare</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody id="trips-tbody">
-          </tbody>
-        </table>
-      </div>
-
-      <div class="pagination" id="pagination"></div>
-    </section>
+    </div>
 
   </div>
 
@@ -194,6 +247,7 @@
 
 
   <script src="js/api.js"></script>
+  <script src="js/data.js"></script>
   <script src="js/filters.js"></script>
   <script src="js/charts.js"></script>
   <script src="js/app.js"></script>
