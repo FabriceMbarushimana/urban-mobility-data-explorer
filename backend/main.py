@@ -1,215 +1,100 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import mysql.connector
-from mysql.connector import errorcode
-from dotenv import load_dotenv
+# URBAN MOBILITY DATA PIPELINE - ETL Script
+# This script performs Extract, Transform, Load (ETL) operations for NYC taxi data:
+# 1. Loads CSV data files and shapefiles
+# 2. Cleans and validates data (removes outliers, invalid dates)
+# 3. Engineers features (speed, duration, categories)
+# 4. Loads data into MySQL database
+# 5. Exports GeoJSON for mapping
+#
+# USAGE: python main.py (run once to initialize database)
+
+# Standard library imports
 import os
-import time
-import decimal
+import json
 
+# Third-party imports for data processing
+import pandas as pd              # Data manipulation and analysis
+import geopandas as gpd          # Geospatial data handling
+import mysql.connector           # MySQL database connector
+from mysql.connector import Error
+from dotenv import load_dotenv   # Environment variable management
 
+# ENVIRONMENT CONFIGURATION
+# Load database credentials and configuration from .env file
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app)
+# PATH CONFIGURATION
+# Configure all file paths relative to script location for portability
+BASE_PATH = os.path.dirname(os.path.abspath(__file__))  # backend/ directory
+REPO_ROOT = os.path.dirname(BASE_PATH)                   # project root directory
+DATA_DIR = os.path.join(REPO_ROOT, 'data')               # raw data location
 
+# Output directories for processed and rejected data
+OUTPUT_DIR = os.path.join(BASE_PATH, 'processed')        # cleaned data output
+REJECTED_DIR = os.path.join(BASE_PATH, 'rejected_data')  # invalid records storage
+os.makedirs(OUTPUT_DIR, exist_ok=True)                   # create if doesn't exist
+os.makedirs(REJECTED_DIR, exist_ok=True)
 
-def default_serializer(obj):
-    if isinstance(obj, decimal.Decimal):
-        return float(obj)
-    raise TypeError
+# Input data file paths
+TRIP_DATA = os.path.join(DATA_DIR, 'yellow_tripdata_2019-01.csv')  # NYC taxi trip records
+ZONE_LOOKUP = os.path.join(DATA_DIR, 'taxi_zone_lookup.csv')       # Zone/Borough mapping
+TAXI_ZONES_JSON = os.path.join(DATA_DIR, 'taxi_zones.json')        # Taxi zones geographic data
+SPATIAL_DATA = os.path.join(DATA_DIR, 'taxi_zones.shp')            # Geographic boundaries
 
-def get_db_connection():
-    """Establishes a connection to the Cloud MySQL database."""
-    try:
-        conn = mysql.connector.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            user=os.getenv("DB_USER", "root"),
-            password=os.getenv("DB_PASSWORD", ""),
-            database=os.getenv("DB_NAME", "urban_mobility"),
-            port=int(os.getenv("DB_PORT", 3306)),
-            ssl_ca=os.getenv("DB_SSL_CA"),
-            ssl_verify_cert=True if os.getenv("DB_SSL_CA") else False
-        )
-        return conn
-    except mysql.connector.Error as err:
-        print(f"[ERROR] Database connection failed: {err}")
-        return None
+# Output file paths
+GEOJSON_OUT = os.path.join(OUTPUT_DIR, 'taxi_zones_final.json')   # Map visualization file
+REJECTED_RECORDS = os.path.join(REJECTED_DIR, 'invalid_dates.csv')# Rejected trip records
+REJECTION_LOG = os.path.join(REJECTED_DIR, 'rejection_report.txt')# Rejection summary
 
-def serialize_rows(rows):
-    """Helper to convert Decimal objects to floats in a list of dicts."""
-    for row in rows:
-        for key, value in row.items():
-            if isinstance(value, decimal.Decimal):
-                row[key] = float(value)
-    return rows
+# DATABASE CONFIGURATION
+# MySQL connection parameters loaded from environment variables
+DB_CONFIG = {
+    'host': os.getenv('DB_HOST', 'localhost'),           # Database server address
+    'user': os.getenv('DB_USER', 'root'),                # Database username
+    'password': os.getenv('DB_PASSWORD', ''),            # Database password (from .env)
+    'database': os.getenv('DB_NAME', 'urban_mobility'),  # Target database name
+    'port': int(os.getenv('DB_PORT', 3306))              # MySQL port (default: 3306)
+}
 
-@app.route('/api/trips', methods=['GET'])
-def get_trips():
-    """
-    Fetch trips with optional filtering by borough.
-    Uses SQL JOIN for efficient filtering.
-    """
+# DATA VALIDATION RULES
+# Cutoff year: Accept any year up to 2019, reject 2020 and onwards
+# This ensures we only work with historical 2019 data
+CUTOFF_YEAR = 2019
 
-    borough = request.args.get('borough')
-    limit = int(request.args.get('limit', 100))
-    offset = int(request.args.get('offset', 0))
+# PIPELINE START
+print("\n" + "="*70)
+print("URBAN MOBILITY DATA PIPELINE - ETL PROCESS")
+print("="*70)
+print("Initializing data extraction, transformation, and loading...\n")
 
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database connection failed"}), 500
+# STEP 1: DATA EXTRACTION (LOADING)
+# Validate that required data files exist before proceeding
+if not os.path.exists(TRIP_DATA):
+    print(f"ERROR: Could not find trip data file at {TRIP_DATA}")
+    print("   Please ensure the data file exists in the data/ directory.")
+    exit()
 
-    cursor = conn.cursor(dictionary=True)
+print("STEP 1: Loading data files...")
+print("-" * 70)
 
-    try:
+# Load trip records (limited to 15,000 rows for faster processing)
+# After cleaning, approximately 10,000-12,000 valid records remain
+print("   > Loading taxi trip data (15,000 rows sample)...")
+trips = pd.read_csv(TRIP_DATA, low_memory=False, nrows=15000)
+print(f"   [OK] Loaded {len(trips):,} trip records")
 
-        query = """
-            SELECT t.*, z.borough as pickup_borough, z.zone_name as pickup_zone
-            FROM trips t
-            JOIN zones z ON t.pickup_zone_id = z.zone_id
-        """
-        params = []
+# Load zone lookup table (maps LocationID to Borough and Zone names)
+print("   > Loading zone lookup table...")
+lookup = pd.read_csv(ZONE_LOOKUP)
+print(f"   [OK] Loaded {len(lookup)} zones")
 
+# Load taxi zones geographic data (objectid, shape_leng, shape_area, zone, locationid, borough)
+print("   > Loading taxi zones geographic data...")
+with open(TAXI_ZONES_JSON, 'r') as f:
+    taxi_zones_data = json.load(f)
+print(f"   [OK] Loaded {len(taxi_zones_data)} taxi zones")
 
-        if borough:
-            query += " WHERE z.borough = %s"
-            params.append(borough)
-
-
-        query += " LIMIT %s OFFSET %s"
-        params.append(limit)
-        params.append(offset)
-
-        cursor.execute(query, params)
-        trips = cursor.fetchall()
-
-
-        return jsonify(serialize_rows(trips))
-
-    except mysql.connector.Error as err:
-        return jsonify({"error": str(err)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-
-
-def manual_bubble_sort(data_list, key, descending=False):
-    """
-    Manual implementation of Bubble Sort.
-
-    Time Complexity: O(n^2) - Nested loops iterate through the list.
-                              For each element, we compare it with n-1 other elements.
-    Space Complexity: O(1) - Sorting is done in-place, requiring no extra memory proportional to input size.
-
-    Args:
-        data_list (list): List of dictionaries to sort.
-        key (str): The dictionary key to sort by (e.g., 'fare_amount').
-        descending (bool): If True, sort from high to low.
-    """
-    n = len(data_list)
-    for i in range(n):
-
-        for j in range(0, n - i - 1):
-            val_a = data_list[j].get(key, 0) or 0
-            val_b = data_list[j + 1].get(key, 0) or 0
-
-            should_swap = False
-            if descending:
-                if val_a < val_b:
-                    should_swap = True
-            else:
-                if val_a > val_b:
-                    should_swap = True
-
-            if should_swap:
-
-                data_list[j], data_list[j + 1] = data_list[j + 1], data_list[j]
-    return data_list
-
-@app.route('/api/top_fares', methods=['GET'])
-def get_top_fares():
-    """
-    Demonstrates usage of MANUAL ALGORITHMS (Bubble Sort).
-    Fetches raw data and sorts it in Python rather than SQL.
-    """
-    borough = request.args.get('borough', 'Manhattan')
-    limit = int(request.args.get('limit', 50))
-
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database connection failed"}), 500
-
-    cursor = conn.cursor(dictionary=True)
-
-    try:
-
-
-        query = """
-            SELECT t.pickup_datetime, t.dropoff_datetime, t.fare_amount, t.trip_distance,
-                   z.borough as pickup_borough
-            FROM trips t
-            JOIN zones z ON t.pickup_zone_id = z.zone_id
-            WHERE z.borough = %s
-            LIMIT 500
-        """
-        cursor.execute(query, (borough,))
-        raw_trips = cursor.fetchall()
-
-
-        trip_data = serialize_rows(raw_trips)
-
-
-        start_time = time.time()
-        sorted_trips = manual_bubble_sort(trip_data, key='fare_amount', descending=True)
-        end_time = time.time()
-        time_taken = end_time - start_time
-
-        response = {
-            "meta": {
-                "count": len(sorted_trips),
-                "algorithm": "Bubble Sort (Manual)",
-                "time_taken_seconds": time_taken,
-                "complexity": "O(n^2)",
-                "note": "Sorted manually in Python, not via SQL ORDER BY"
-            },
-            "data": sorted_trips[:limit]
-        }
-        return jsonify(response)
-
-    except mysql.connector.Error as err:
-        return jsonify({"error": str(err)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    """
-    Returns aggregated statistics about the dataset.
-    """
-    conn = get_db_connection()
-    if not conn:
-        return jsonify({"error": "Database connection failed"}), 500
-
-    cursor = conn.cursor(dictionary=True)
-    try:
-        cursor.execute("""
-            SELECT
-                COUNT(*) as total_trips,
-                AVG(fare_amount) as avg_fare,
-                AVG(trip_distance) as avg_distance,
-                SUM(total_amount) as total_revenue
-            FROM trips
-        """)
-        stats = cursor.fetchone()
-        return jsonify(serialize_rows([stats])[0])
-    except mysql.connector.Error as err:
-        return jsonify({"error": str(err)}), 500
-    finally:
-        cursor.close()
-        conn.close()
-
-if __name__ == "__main__":
-    app.run(debug=True, port=5001)
-
+# Load spatial data (shapefile with geographic boundaries for mapping)
+print("   > Loading spatial data (shapefiles)...")
+zones_spatial = gpd.read_file(SPATIAL_DATA)
+print(f"   [OK] Loaded {len(zones_spatial)} geographic zones")
