@@ -191,3 +191,54 @@ df = df[valid_mask]
 records_removed = initial_count - len(df)
 print(f"   [OK] Removed {records_removed:,} invalid/outlier records")
 print(f"   [OK] Clean dataset: {len(df):,} valid records ({(len(df)/initial_count)*100:.1f}% retention)")
+
+
+
+# STEP 4: FEATURE ENGINEERING
+print("\nSTEP 4: Engineering new features...")
+print("-" * 70)
+
+# Calculate trip duration in minutes
+print("   > Calculating trip duration...")
+df['duration_mins'] = (df['tpep_dropoff_datetime'] - df['tpep_pickup_datetime']).dt.total_seconds() / 60
+print(f"   [OK] Duration calculated (avg: {df['duration_mins'].mean():.1f} minutes)")
+
+# Remove records with invalid duration (negative or zero)
+df = df[df['duration_mins'] > 0]
+
+# Calculate average speed in miles per hour
+print("   > Calculating average speed...")
+df['avg_speed_mph'] = df['trip_distance'] / (df['duration_mins'] / 60)
+print(f"   [OK] Speed calculated (avg: {df['avg_speed_mph'].mean():.1f} mph)")
+
+# Calculate tip percentage
+print("   > Calculating tip percentages...")
+df['tip_percentage'] = (df['tip_amount'] / df['fare_amount']) * 100
+print(f"   [OK] Tip percentage calculated (avg: {df['tip_percentage'].mean():.1f}%)")
+
+# Extract hour of day from pickup datetime (for hourly patterns analysis)
+print("   > Extracting temporal features...")
+df['pickup_hour'] = df['tpep_pickup_datetime'].dt.hour
+print("   [OK] Pickup hour extracted")
+
+# Create fare range categories for distribution analysis
+print("   > Creating fare range categories...")
+df['fare_range'] = pd.cut(
+    df['fare_amount'],
+    bins=[0, 5, 10, 20, 50, float('inf')],       # Fare brackets
+    labels=['0-5', '5-10', '10-20', '20-50', '50+'],  # Category labels
+    right=False                                   # Left-inclusive intervals
+)
+print("   [OK] Fare ranges categorized (5 brackets)")
+
+# Create distance categories for trip length analysis
+print("   > Creating distance categories...")
+df['distance_category'] = pd.cut(
+    df['trip_distance'],
+    bins=[0, 1, 3, 5, 10, float('inf')],         # Distance brackets in miles
+    labels=['0-1', '1-3', '3-5', '5-10', '10+'], # Category labels
+    right=False                                   # Left-inclusive intervals
+)
+print("   [OK] Distance categories created (5 brackets)")
+print(f"\n   [INFO] Feature engineering complete: {len(df.columns)} total columns")
+
