@@ -521,3 +521,24 @@ finally:
     print("\n   Database connection closed")
 
 
+# STEP 6: GEOJSON EXPORT
+print("\nSTEP 6: Exporting GeoJSON for mapping...")
+print("-" * 70)
+print("   > Converting spatial data to GeoJSON format...")
+zones_spatial.to_file(GEOJSON_OUT, driver='GeoJSON')
+print(f"   [OK] GeoJSON exported to: {GEOJSON_OUT}")
+
+# PIPELINE COMPLETION
+print("\n" + "="*70)
+print("ETL PIPELINE COMPLETED SUCCESSFULLY")
+print("="*70)
+print("\nSummary:")
+print(f"   - Loaded: {initial_count:,} raw records")
+print(f"   - Cleaned: {len(df):,} valid records")
+print(f"   - Rejected: {records_removed:,} invalid records")
+print(f"   - Database: {DB_CONFIG['database']}")
+print(f"   - Tables: trips ({total_rows:,} rows), zones ({len(zone_values)} rows), taxi_zones ({len(taxi_zones_values)} rows)")
+print(f"   - GeoJSON: {GEOJSON_OUT}")
+print("\nYour data is ready! You can now run app.py to start the API server.")
+print("="*70 + "\n")
+
