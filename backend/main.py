@@ -242,3 +242,282 @@ df['distance_category'] = pd.cut(
 print("   [OK] Distance categories created (5 brackets)")
 print(f"\n   [INFO] Feature engineering complete: {len(df.columns)} total columns")
 
+
+# STEP 5: DATABASE STORAGE (LOADING)
+print("\nSTEP 5: Loading data into MySQL database...")
+print("-" * 70)
+
+# Initialize variables for scope (used in final summary)
+zone_values = []
+taxi_zones_values = []
+total_rows = 0
+
+try:
+    # Establish connection to MySQL server (without specifying database)
+    print("   > Connecting to MySQL server...")
+    conn = mysql.connector.connect(
+        host=DB_CONFIG['host'],
+        user=DB_CONFIG['user'],
+        password=DB_CONFIG['password'],
+        port=DB_CONFIG['port']
+    )
+    cursor = conn.cursor()
+    print(f"   [OK] Connected to MySQL server at {DB_CONFIG['host']}:{DB_CONFIG['port']}")
+    
+    # Optimize MySQL packet size for large batch inserts
+    print("   > Optimizing MySQL configuration...")
+    try:
+        cursor.execute("SET GLOBAL max_allowed_packet=67108864")  # 64MB packet size
+        print("   [OK] MySQL packet size limit increased to 64MB")
+    except mysql.connector.Error:
+        print("   [INFO] Using default MySQL packet size (batch operations adjusted)")
+    
+    # Create database if it doesn't exist and switch to it
+    print(f"   > Setting up database '{DB_CONFIG['database']}'...")
+    cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_CONFIG['database']}")
+    cursor.execute(f"USE {DB_CONFIG['database']}")
+    print(f"   [OK] Database '{DB_CONFIG['database']}' ready")
+    
+    # Drop existing tables to ensure clean slate (prevents duplicate data)
+    print("   > Dropping existing tables (if any)...")
+    cursor.execute("DROP TABLE IF EXISTS trips")
+    cursor.execute("DROP TABLE IF EXISTS taxi_zones")
+    cursor.execute("DROP TABLE IF EXISTS zones")
+    cursor.execute("DROP TABLE IF EXISTS excluded_data_log")
+    print("   [OK] Old tables removed (fresh start)")
+    
+    # Create zones table (referenced by taxi_zones and trips)
+    create_zones_table = """
+    CREATE TABLE zones (
+        LocationID INT PRIMARY KEY,
+        Borough VARCHAR(50),
+        Zone VARCHAR(100),
+        service_zone VARCHAR(50),
+        INDEX idx_borough (Borough),
+        INDEX idx_zone (Zone)
+    )
+    """
+    cursor.execute(create_zones_table)
+    
+    # Create taxi_zones table with foreign key to zones
+    create_taxi_zones_table = """
+    CREATE TABLE taxi_zones (
+        objectid INT PRIMARY KEY,
+        shape_leng FLOAT,
+        shape_area FLOAT,
+        zone VARCHAR(100),
+        locationid INT,
+        borough VARCHAR(50),
+        INDEX idx_locationid (locationid),
+        INDEX idx_borough_tz (borough),
+        FOREIGN KEY (locationid) REFERENCES zones(LocationID) ON DELETE CASCADE
+    )
+    """
+    cursor.execute(create_taxi_zones_table)
+    
+    # Create trips table with proper schema and foreign keys
+    create_trips_table = """
+    CREATE TABLE trips (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        VendorID INT,
+        tpep_pickup_datetime DATETIME,
+        tpep_dropoff_datetime DATETIME,
+        passenger_count INT,
+        trip_distance FLOAT,
+        RatecodeID INT,
+        store_and_fwd_flag VARCHAR(10),
+        PULocationID INT,
+        DOLocationID INT,
+        payment_type INT,
+        fare_amount FLOAT,
+        extra FLOAT,
+        mta_tax FLOAT,
+        tip_amount FLOAT,
+        tolls_amount FLOAT,
+        improvement_surcharge FLOAT,
+        total_amount FLOAT,
+        congestion_surcharge FLOAT,
+        pu_borough VARCHAR(50),
+        pu_zone VARCHAR(100),
+        service_zone VARCHAR(50),
+        do_borough VARCHAR(50),
+        do_zone VARCHAR(100),
+        do_service_zone VARCHAR(50),
+        duration_mins FLOAT,
+        avg_speed_mph FLOAT,
+        tip_percentage FLOAT,
+        pickup_hour INT,
+        fare_range VARCHAR(20),
+        distance_category VARCHAR(20),
+        INDEX idx_pickup_datetime (tpep_pickup_datetime),
+        INDEX idx_pickup_location (PULocationID),
+        INDEX idx_dropoff_location (DOLocationID),
+        INDEX idx_pickup_hour (pickup_hour),
+        INDEX idx_fare_range (fare_range),
+        INDEX idx_distance_category (distance_category),
+        FOREIGN KEY (PULocationID) REFERENCES zones(LocationID) ON DELETE SET NULL,
+        FOREIGN KEY (DOLocationID) REFERENCES zones(LocationID) ON DELETE SET NULL
+    )
+    """
+    cursor.execute(create_trips_table)
+    
+    # Create excluded_data_log table for tracking data quality issues
+    create_excluded_log_table = """
+    CREATE TABLE excluded_data_log (
+        log_id INT AUTO_INCREMENT PRIMARY KEY,
+        issue_type VARCHAR(50),
+        trip_identifier VARCHAR(100),
+        field_name VARCHAR(50),
+        issue_description TEXT,
+        action_taken VARCHAR(100),
+        logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_issue_type (issue_type),
+        INDEX idx_logged_at (logged_at)
+    )
+    """
+    cursor.execute(create_excluded_log_table)
+    
+    print("   [OK] Database schema created successfully")
+    print("        - zones table (4 columns, 2 indexes)")
+    print("        - taxi_zones table (6 columns, 2 indexes, 1 FK)")
+    print("        - trips table (30 columns, 6 indexes, 2 FKs)")
+    print("        - excluded_data_log table (7 columns, 2 indexes)")
+    
+    # Insert zone lookup data FIRST (required by foreign key constraints)
+    print("\n   > Inserting zone lookup data...")
+    zone_insert = """
+    INSERT INTO zones (LocationID, Borough, Zone, service_zone)
+    VALUES (%s, %s, %s, %s)
+    """
+    zone_values = []
+    for _, row in lookup.iterrows():
+        zone_values.append((
+            int(row['LocationID']),       # Unique zone identifier
+            str(row['Borough']),          # Borough name (Manhattan, Brooklyn, etc.)
+            str(row['Zone']),             # Specific zone name
+            str(row['service_zone'])      # Service zone type
+        ))
+    cursor.executemany(zone_insert, zone_values)
+    conn.commit()
+    print(f"   [OK] Zone lookup data inserted ({len(zone_values)} zones)")
+    
+    # Insert taxi zones geographic data SECOND (depends on zones table)
+    print("\n   > Inserting taxi zones geographic data...")
+    taxi_zones_insert = """
+    INSERT INTO taxi_zones (objectid, shape_leng, shape_area, zone, locationid, borough)
+    VALUES (%s, %s, %s, %s, %s, %s)
+    """
+    taxi_zones_values = []
+    for zone_data in taxi_zones_data:
+        taxi_zones_values.append((
+            int(zone_data['objectid']),              # Object ID from GIS data
+            float(zone_data['shape_leng']),          # Shape length (perimeter)
+            float(zone_data['shape_area']),          # Shape area
+            str(zone_data['zone']),                  # Zone name
+            int(zone_data['locationid']),            # Location ID (FK to zones)
+            str(zone_data['borough'])                # Borough name
+        ))
+    cursor.executemany(taxi_zones_insert, taxi_zones_values)
+    conn.commit()
+    print(f"   [OK] Taxi zones geographic data inserted ({len(taxi_zones_values)} zones)")
+    
+    # Insert trip records LAST (approximately 10,000-12,000 rows after cleaning)
+    print("\n   > Inserting trip records into database...")
+    batch_size = 1000  # Process 1000 records at a time to avoid memory issues
+    total_rows = len(df)
+    print(f"     Total records to insert: {total_rows:,}")
+    
+    for start_idx in range(0, total_rows, batch_size):
+        end_idx = min(start_idx + batch_size, total_rows)
+        batch = df.iloc[start_idx:end_idx]
+        
+        # Prepare data for insertion
+        insert_query = """
+        INSERT INTO trips (
+            VendorID, tpep_pickup_datetime, tpep_dropoff_datetime, passenger_count,
+            trip_distance, RatecodeID, store_and_fwd_flag, PULocationID, DOLocationID,
+            payment_type, fare_amount, extra, mta_tax, tip_amount, tolls_amount,
+            improvement_surcharge, total_amount, congestion_surcharge, pu_borough,
+            pu_zone, service_zone, do_borough, do_zone, do_service_zone,
+            duration_mins, avg_speed_mph, tip_percentage, pickup_hour,
+            fare_range, distance_category
+        ) VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+        )
+        """
+        
+        values = []
+        for _, row in batch.iterrows():
+            # Convert pandas timestamps to Python datetime objects
+            pickup_dt = row.get('tpep_pickup_datetime')
+            dropoff_dt = row.get('tpep_dropoff_datetime')
+            
+            if pd.notna(pickup_dt) and hasattr(pickup_dt, 'to_pydatetime'):
+                pickup_dt = pickup_dt.to_pydatetime()
+            if pd.notna(dropoff_dt) and hasattr(dropoff_dt, 'to_pydatetime'):
+                dropoff_dt = dropoff_dt.to_pydatetime()
+                
+            values.append((
+                int(row.get('VendorID', 0)) if pd.notna(row.get('VendorID')) else None,
+                pickup_dt,
+                dropoff_dt,
+                int(row.get('passenger_count', 0)) if pd.notna(row.get('passenger_count')) else None,
+                float(row.get('trip_distance', 0)) if pd.notna(row.get('trip_distance')) else None,
+                int(row.get('RatecodeID', 0)) if pd.notna(row.get('RatecodeID')) else None,
+                str(row.get('store_and_fwd_flag', '')) if pd.notna(row.get('store_and_fwd_flag')) else None,
+                int(row.get('PULocationID', 0)) if pd.notna(row.get('PULocationID')) else None,
+                int(row.get('DOLocationID', 0)) if pd.notna(row.get('DOLocationID')) else None,
+                int(row.get('payment_type', 0)) if pd.notna(row.get('payment_type')) else None,
+                float(row.get('fare_amount', 0)) if pd.notna(row.get('fare_amount')) else None,
+                float(row.get('extra', 0)) if pd.notna(row.get('extra')) else None,
+                float(row.get('mta_tax', 0)) if pd.notna(row.get('mta_tax')) else None,
+                float(row.get('tip_amount', 0)) if pd.notna(row.get('tip_amount')) else None,
+                float(row.get('tolls_amount', 0)) if pd.notna(row.get('tolls_amount')) else None,
+                float(row.get('improvement_surcharge', 0)) if pd.notna(row.get('improvement_surcharge')) else None,
+                float(row.get('total_amount', 0)) if pd.notna(row.get('total_amount')) else None,
+                float(row.get('congestion_surcharge', 0)) if pd.notna(row.get('congestion_surcharge')) else None,
+                str(row.get('pu_borough', '')) if pd.notna(row.get('pu_borough')) else None,
+                str(row.get('pu_zone', '')) if pd.notna(row.get('pu_zone')) else None,
+                str(row.get('service_zone', '')) if pd.notna(row.get('service_zone')) else None,
+                str(row.get('do_borough', '')) if pd.notna(row.get('do_borough')) else None,
+                str(row.get('do_zone', '')) if pd.notna(row.get('do_zone')) else None,
+                str(row.get('do_service_zone', '')) if pd.notna(row.get('do_service_zone')) else None,
+                float(row.get('duration_mins', 0)) if pd.notna(row.get('duration_mins')) else None,
+                float(row.get('avg_speed_mph', 0)) if pd.notna(row.get('avg_speed_mph')) else None,
+                float(row.get('tip_percentage', 0)) if pd.notna(row.get('tip_percentage')) else None,
+                int(row.get('pickup_hour', 0)) if pd.notna(row.get('pickup_hour')) else None,
+                str(row.get('fare_range', '')) if pd.notna(row.get('fare_range')) else None,
+                str(row.get('distance_category', '')) if pd.notna(row.get('distance_category')) else None
+            ))
+        
+        # Execute batch insert and commit to database
+        cursor.executemany(insert_query, values)
+        conn.commit()
+        
+        # Progress indicator
+        progress_pct = (end_idx / total_rows) * 100
+        print(f"     Progress: {end_idx:,}/{total_rows:,} records ({progress_pct:.1f}%)")
+    
+    print(f"   [OK] All trip records inserted successfully! ({total_rows:,} records)")
+    
+    print("\n   [SUCCESS] Database population complete!")
+    print(f"      Database: {DB_CONFIG['database']}")
+    print(f"      Trip records: {total_rows:,}")
+    print(f"      Zone records: {len(zone_values)}")
+    print(f"      Taxi zones: {len(taxi_zones_values)}")
+    print(f"      Excluded data log: Ready for tracking")
+    
+except Error as e:
+    print(f"\n   [ERROR] MySQL operation failed")
+    print(f"   Details: {e}")
+    print("   Please check your database credentials in the .env file")
+finally:
+    # Always close database connections to free resources
+    if cursor:
+        cursor.close()
+    if conn:
+        conn.close()
+    print("\n   Database connection closed")
+
+
