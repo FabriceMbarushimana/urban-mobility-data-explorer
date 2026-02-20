@@ -4,13 +4,13 @@ A comprehensive data analysis platform for exploring NYC taxi trip patterns usin
 
 **Repository:** [https://github.com/FabriceMbarushimana/urban-mobility-data-explorer](https://github.com/FabriceMbarushimana/urban-mobility-data-explorer)
 
-**Presentetion Video:** [(https://www.loom.com/share/075c3c0de7cf4bb089b595ff64c3b126)] 
-
+**Presentetion Video:** [(https://www.loom.com/share/075c3c0de7cf4bb089b595ff64c3b126)]
 
 
 
 **Team Participation document:** [[https://docs.google.com/spreadsheets/d/1i1QJRnCEk0WvKSzJFw4rc3uzqN_qys0qObbPB9KV5gk/edit?gid=0#gid=0](https://docs.google.com/spreadsheets/d/1i1QJRnCEk0WvKSzJFw4rc3uzqN_qys0qObbPB9KV5gk/edit?gid=0#gid=0)] 
 
+**Urban Mobility Data Explorer Technical Documentation Report:** [(https://docs.google.com/document/d/1ZbzQAD9_oWcMaw74pwCNP9T42BVXc7MM/edit?usp=sharing&ouid=113359116985828265805&rtpof=true&sd=true)] 
 
 ---
 
